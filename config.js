@@ -1,17 +1,17 @@
 // Firebase project settings.
 // Firebase console → Project settings → General → Your apps → Web app → "SDK setup and configuration" → Config.
-// Paste the values here. These are not secret: access is controlled by firestore.rules.
+// These are not secret: access is controlled by firestore.rules.
 export const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID"
+  apiKey: "AIzaSyBtFkr4vEuj0_XtSN3gGXh1i7kUzrsvyOw",
+  authDomain: "fiesta-hub-68418.firebaseapp.com",
+  projectId: "fiesta-hub-68418",
+  storageBucket: "fiesta-hub-68418.firebasestorage.app",
+  messagingSenderId: "298154868011",
+  appId: "1:298154868011:web:611364bdae4dcfd132d96e"
 };
 
 // Emails that are always admins, even before anyone is added on the Access page.
-// Keep this list identical to ADMIN_EMAILS in firestore.rules.
+// Keep this list identical to bootstrapAdmin() in firestore.rules.
 export const ADMIN_EMAILS = [
-  "YOUR_GOOGLE_EMAIL@gmail.com"
+  "rhdptmej0102@gmail.com"
 ];
