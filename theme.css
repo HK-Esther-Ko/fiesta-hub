@@ -123,3 +123,19 @@ select,input[type=text],input[type=url],input[type=email],input[type=date],input
   .dash{grid-template-columns:1fr}
   #notif{right:16px}
 }
+
+/* analytics KPIs */
+.kpis{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px}
+.kpi{padding:18px 20px 20px; display:flex; flex-direction:column; gap:6px}
+.kpi-h{display:flex; align-items:center; gap:10px}
+.kpi-h h3{font-size:16px; margin:0}
+.kpi-n{width:24px; height:24px; border-radius:8px; display:inline-grid; place-items:center; background:var(--soft); color:var(--accent); font-weight:800; font-size:12.5px; flex:none}
+.kpi-why{margin:0; font-size:13px; color:var(--muted); min-height:2.6em}
+.kpi-big{font-family:var(--f-display); font-weight:800; font-size:38px; line-height:1.1; letter-spacing:-.02em; margin-top:6px; font-variant-numeric:tabular-nums}
+.kpi-unit{font-size:14px; font-weight:600; color:var(--muted); letter-spacing:0; margin-left:4px}
+.kpi-sub{font-size:13.5px; color:var(--ink)}
+.kpi-d{font-size:13px; font-weight:700}
+.kpi-d.up,.meta.up{color:var(--ok)} .kpi-d.down,.meta.down{color:var(--danger)}
+.exp{display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:4px 18px 18px}
+.exp p{margin:4px 0 0; white-space:pre-wrap}
+@media (max-width:900px){ .kpis{grid-template-columns:1fr} .exp{grid-template-columns:1fr} }

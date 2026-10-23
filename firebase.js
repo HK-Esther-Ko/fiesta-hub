@@ -78,7 +78,8 @@ export async function importData(json, onProgress){
   for (const [col, docs] of Object.entries(json)) for (const [id, data] of Object.entries(docs)) entries.push([col, id, data]);
   for (let i = 0; i < entries.length; i += 400){
     const b = writeBatch(fs);
-    for (const [col, id, data] of entries.slice(i, i + 400)) b.set(fsDoc(fs, col, id), data);
+    // merge: a patch file only changes the fields it lists (lists like roles are replaced whole)
+    for (const [col, id, data] of entries.slice(i, i + 400)) b.set(fsDoc(fs, col, id), data, { merge: true });
     await b.commit();
     if (onProgress) onProgress(Math.min(i + 400, entries.length), entries.length);
   }

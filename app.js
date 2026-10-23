@@ -49,11 +49,12 @@ const DRIVE_CARDS = [
   {tag:"Company", title:"Meetings", desc:"Meeting notes, recordings and company files. Upload them here after each meeting.", keys:["meetings"], color:"var(--news)"}
 ];
 const VIEWS = [["mytasks","Home"],["calendar","Calendar"],["analytics","Analytics"],["events","Event org chart"],["roles","Roles"],["chat","Team chat"],["drive","Drive"],["sops","SOPs"]];
+// Instagram inputs entered once a month (from Instagram Insights, month totals)
 const METRICS = [
-  ["igFollowers","Instagram followers"],["igReach","Instagram accounts reached"],["igViews","Instagram views"],
-  ["igInteractions","Instagram interactions"],["igShares","Instagram shares"],["liFollowers","LinkedIn followers"],
-  ["nlSubscribers","Newsletter subscribers"],["nlOpenRate","Newsletter open rate (%)"]
+  ["igFollowers","Followers at month end"],["igShares","Shares"],["igSaves","Saves"],
+  ["igProfileVisits","Profile visits"],["igLinkClicks","Bio link clicks"],["igReach","Accounts reached"]
 ];
+const isRateKey = k => k === "igClickRate" || k === "igGrowthPct";
 const AREAS = ["Lead","Program","Media","Operations","After the event","Advisory"];
 const ROLE_TEMPLATE = [
   ["Lead","Event lead"],["Program","MC / host"],["Program","Pitch coordinator"],["Program","Judges & speakers contact"],
@@ -243,7 +244,7 @@ function start(){
 
 /* ---------- analytics ---------- */
 const monthLabel = (ym, long) => new Date(+ym.slice(0,4), +ym.slice(5,7)-1, 1).toLocaleDateString("en-US", long ? {month:"long", year:"numeric"} : {month:"short"});
-const isRate = k => k === "nlOpenRate";
+const isRate = isRateKey;
 const fmtNum = (k, v) => v==null ? "—" : isRate(k) ? `${v}%` : Math.round(v).toLocaleString("en-US");
 const fmtAxis = (k, v) => isRate(k) ? `${Math.round(v)}%` : Math.abs(v) >= 1000 ? `${(v/1000).toFixed(v>=10000?0:1)}K` : String(Math.round(v));
 function delta(k, cur, prev){
@@ -260,7 +261,7 @@ function lineChart(rows, key){
   const vals = pts.map(p => p[key]);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (lo === hi){ lo -= 1; hi += 1; }
-  const padv = (hi - lo) * 0.15; lo = Math.max(0, lo - padv); hi += padv;
+  const padv = (hi - lo) * 0.15; lo = lo < 0 ? lo - padv : Math.max(0, lo - padv); hi += padv;
   const x = i => L + (W - L - R) * (i / (pts.length - 1));
   const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
   const ticks = [0,1,2,3].map(i => lo + (hi - lo) * i / 3);
@@ -289,66 +290,109 @@ function lineChart(rows, key){
   svg.querySelector(".lc-hit").addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("visibility","hidden"); });
   return wrap;
 }
+// month rows plus the three KPIs worked out from them
+function kpiRows(){
+  const rows = (S.kpis || []).map(r => ({...r}));
+  rows.forEach((r, i) => {
+    const p = rows[i-1];
+    if (p && r.igFollowers != null && p.igFollowers != null){
+      r.igGrowth = r.igFollowers - p.igFollowers;
+      r.igGrowthPct = p.igFollowers ? +((r.igGrowth / p.igFollowers) * 100).toFixed(1) : null;
+    }
+    if (r.igLinkClicks != null && r.igProfileVisits) r.igClickRate = +((r.igLinkClicks / r.igProfileVisits) * 100).toFixed(1);
+  });
+  return rows;
+}
+const signed = v => v == null ? "—" : `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString("en-US")}`;
 function viewAnalytics(){
-  const rows = S.kpis || [];
-  const last = rows[rows.length-1], prev = rows[rows.length-2];
-  const key = METRICS.some(([k])=>k===S.metric) ? S.metric : "igReach";
-  const ym = `${S.month.getFullYear()}-${pad(S.month.getMonth()+1)}`;
-  const inMonth = S.content.filter(c => (c.publishDate||"").slice(0,7) === ym && c.type !== "Shoot");
-  const pub = inMonth.filter(c => DONE.has(c.status)).length;
-  const byType = {}; for (const c of inMonth) byType[c.type] = (byType[c.type]||0) + 1;
-  const tile = ([k,l]) => { const d = last ? delta(k, last[k], prev?.[k]) : null;
-    return h("div",{class:"panel stat"}, h("div",{class:"stat-l", style:"margin:0 0 6px"}, l), h("div",{class:"stat-n"}, fmtNum(k, last?.[k])),
-      d ? h("div",{class:"small "+(d.up?"up":"down"), style:"margin-top:6px"}, `${d.up?"▲":"▼"} ${d.text} vs ${monthLabel(prev.id)}`) : h("div",{class:"small muted", style:"margin-top:6px"}, last ? "No earlier month to compare" : "No numbers yet")); };
+  const rows = kpiRows();
+  const idx = Math.max(0, rows.findIndex(r => r.id === S.kpiMonth) >= 0 ? rows.findIndex(r => r.id === S.kpiMonth) : rows.length - 1);
+  const cur = rows[idx], prev = rows[idx-1];
+  const vs = prev ? ` vs ${monthLabel(prev.id)}` : "";
+  const change = (k) => { const d = cur && prev ? delta(k, cur[k], prev[k]) : null; return d ? h("div",{class:"kpi-d "+(d.up?"up":"down")}, `${d.up?"▲":"▼"} ${d.text}${vs}`) : h("div",{class:"kpi-d muted"}, prev ? "Not enough data to compare" : "First month: nothing to compare yet"); };
+  const kpi = (n, title, why, big, unit, sub, d) => h("section",{class:"card kpi"},
+    h("div",{class:"kpi-h"}, h("span",{class:"kpi-n"}, n), h("h3",{}, title)),
+    h("p",{class:"kpi-why"}, why),
+    h("div",{class:"kpi-big"}, big, h("span",{class:"kpi-unit"}, unit)),
+    sub ? h("div",{class:"kpi-sub"}, sub) : null, d);
+  const growthD = cur?.igGrowth != null && prev?.igGrowth != null
+    ? h("div",{class:"kpi-d "+(cur.igGrowth >= prev.igGrowth ? "up" : "down")}, `${cur.igGrowth >= prev.igGrowth ? "▲" : "▼"} ${signed(cur.igGrowth)} vs ${signed(prev.igGrowth)} in ${monthLabel(prev.id)}`)
+    : h("div",{class:"kpi-d muted"}, "Needs followers for this month and the two before it to compare growth");
+  const ym = cur ? cur.id : `${S.month.getFullYear()}-${pad(S.month.getMonth()+1)}`;
+  const posts = S.content.filter(c => (c.publishDate||"").slice(0,7) === ym && c.type !== "Shoot");
+  const published = posts.filter(c => DONE.has(c.status)).length;
+  const monthPick = rows.length ? h("select",{"aria-label":"Month", onchange:ev=>{ S.kpiMonth = ev.target.value; renderMain(); }},
+    ...rows.slice().reverse().map(r => { const o = h("option",{value:r.id}, monthLabel(r.id, true)); if (r.id === cur?.id) o.selected = true; return o; })) : null;
   return [
-    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Analytics"), h("h2",{}, last ? `KPIs · ${monthLabel(last.id, true)}` : "Monthly KPIs")),
-      canContent() ? h("button",{class:"btn primary", type:"button", onclick:()=>openKpi(null)},"+ Add a month's numbers") : null),
-    h("p",{class:"small muted", style:"margin:-12px 0 0"},"Enter numbers from Instagram Insights, LinkedIn and Mailchimp once a month, after the month closes. Compare full months only."),
-    h("div",{class:"stats"}, ...[METRICS[1], METRICS[0], METRICS[3], METRICS[6]].map(tile)),
-    h("section",{class:"panel", style:"padding:16px 18px"},
-      h("div",{class:"spread", style:"align-items:center; margin-bottom:8px"}, h("h3",{}, (METRICS.find(([k])=>k===key)||[])[1] + " by month"),
-        h("select",{"aria-label":"Metric", onchange:ev=>{ S.metric = ev.target.value; renderMain(); }}, ...METRICS.map(([k,l]) => { const o = h("option",{value:k}, l); if (k===key) o.selected = true; return o; }))),
-      lineChart(rows, key)),
-    last?.notes ? h("section",{class:"panel", style:"padding:16px 18px"}, h("div",{class:"eyebrow"}, `What we'll try next · ${monthLabel(last.id, true)}`), h("p",{style:"margin:6px 0 0; white-space:pre-wrap"}, last.notes)) : null,
-    h("section",{}, h("div",{class:"group-h"}, h("h3",{},"All months")),
-      h("div",{class:"panel kpi-scroll"}, rows.length ? h("table",{class:"plan-table kpi-table"},
-        h("thead",{}, h("tr",{}, h("th",{},"Month"), ...METRICS.map(([,l])=>h("th",{}, l)), canContent() ? h("th",{},"") : null)),
-        h("tbody",{}, ...rows.slice().reverse().map(r => h("tr",{}, h("td",{}, h("b",{}, monthLabel(r.id, true))), ...METRICS.map(([k])=>h("td",{class:"mono"}, fmtNum(k, r[k]))),
-          canContent() ? h("td",{}, h("button",{class:"btn sm ghost", type:"button", onclick:()=>openKpi(r.id)},"Edit")) : null))))
-        : h("div",{class:"empty"},"No months entered yet."))),
-    h("section",{}, h("div",{class:"group-h"}, h("h3",{}, `From the calendar · ${monthLabel(ym, true)}`), h("span",{class:"small muted"},"change the month on the Calendar page")),
-      h("div",{class:"stats"},
-        h("div",{class:"panel stat"}, h("div",{class:"stat-n"}, inMonth.length), h("div",{class:"stat-l"},"posts planned")),
-        h("div",{class:"panel stat"}, h("div",{class:"stat-n"}, pub), h("div",{class:"stat-l"},"published")),
-        h("div",{class:"panel stat"}, h("div",{class:"stat-n"}, inMonth.length ? Math.round(pub / inMonth.length * 100) + "%" : "—"), h("div",{class:"stat-l"},"of plan published"))),
-      Object.keys(byType).length ? h("div",{class:"p-tags", style:"margin-top:10px"}, ...Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([t,n]) => h("span",{class:"p-tag"}, `${t} · ${n}`))) : null)
+    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Analytics · Instagram"), h("h2",{}, cur ? `Monthly KPIs · ${monthLabel(cur.id, true)}` : "Monthly KPIs")),
+      h("div",{class:"row"}, monthPick, canContent() ? h("button",{class:"btn primary", type:"button", onclick:()=>openKpi(null)},"+ Add a month") : null)),
+    h("p",{class:"small muted", style:"margin:-12px 0 0"},"Our baseline for judging content experiments: growth, shares and conversion, not just views or likes. Enter numbers from Instagram Insights after each month closes."),
+    rows.length ? null : h("div",{class:"panel empty"},"No months entered yet. Click “+ Add a month” and fill in last month's numbers from Instagram Insights."),
+    cur ? h("div",{class:"kpis"},
+      kpi("1","Growth","Month-over-month follower growth.",
+        signed(cur.igGrowth), " new followers",
+        cur.igFollowers != null ? `${cur.igGrowthPct != null ? signed(cur.igGrowthPct).replace(/(\d)$/,"$1") + "% · " : ""}${fmtNum("igFollowers", cur.igFollowers)} followers` : null, growthD),
+      kpi("2","Shares","How often content is shared. Shares and saves push organic distribution.",
+        fmtNum("igShares", cur.igShares), " shares", cur.igSaves != null ? `${fmtNum("igSaves", cur.igSaves)} saves` : null, change("igShares")),
+      kpi("3","Conversion","Bio link activity that moves people from Instagram to the FIESTA website.",
+        fmtNum("igLinkClicks", cur.igLinkClicks), " link clicks",
+        cur.igClickRate != null ? `${cur.igClickRate}% of ${fmtNum("igProfileVisits", cur.igProfileVisits)} profile visits` : null, change("igLinkClicks"))) : null,
+    rows.length >= 2 ? h("div",{class:"kpis"},
+      ...[["igGrowth","Growth · new followers"],["igShares","Shares"],["igLinkClicks","Conversion · link clicks"]].map(([k, t]) =>
+        h("section",{class:"card", style:"padding-bottom:12px"}, h("div",{class:"card-h"}, h("h3",{}, t)), h("div",{style:"padding:0 12px"}, lineChart(rows, k))))) : null,
+    cur ? h("div",{class:"dash"},
+      card(`Experiments · ${monthLabel(cur.id, true)}`, canContent() ? h("button",{class:"link", type:"button", onclick:()=>openKpi(cur.id)},"Edit") : null,
+        h("div",{class:"exp"},
+          h("div",{}, h("div",{class:"eyebrow"},"What we tested"), h("p",{}, cur.experiment || "Nothing logged. Note new formats here, like “Founder Q&A reels on Thursdays.”")),
+          h("div",{}, h("div",{class:"eyebrow"},"What we learned / try next"), h("p",{}, cur.notes || "—")))),
+      card("Posting this month", h("button",{class:"link", type:"button", onclick:()=>{ S.month = new Date(+ym.slice(0,4), +ym.slice(5,7)-1, 1); setView("calendar"); }},"Open calendar"),
+        h("div",{class:"mini-kpi"}, h("div",{class:"stat-n"}, `${published} / ${posts.length}`), h("div",{class:"stat-l"},"posts published / planned"),
+          cur.igReach != null ? h("div",{class:"small muted"}, `${fmtNum("igReach", cur.igReach)} accounts reached`) : null))) : null,
+    rows.length ? h("section",{}, h("div",{class:"group-h"}, h("h3",{},"All months")),
+      h("div",{class:"panel kpi-scroll"}, h("table",{class:"plan-table kpi-table"},
+        h("thead",{}, h("tr",{}, ...["Month","Followers","Growth","Growth %","Shares","Saves","Profile visits","Link clicks","Click rate","Reach"].map(x => h("th",{}, x)), canContent() ? h("th",{},"") : null)),
+        h("tbody",{}, ...rows.slice().reverse().map(r => h("tr",{},
+          h("td",{}, h("b",{}, monthLabel(r.id, true))),
+          h("td",{class:"mono"}, fmtNum("igFollowers", r.igFollowers)), h("td",{class:"mono"}, signed(r.igGrowth)),
+          h("td",{class:"mono"}, r.igGrowthPct == null ? "—" : `${r.igGrowthPct}%`),
+          h("td",{class:"mono"}, fmtNum("igShares", r.igShares)), h("td",{class:"mono"}, fmtNum("igSaves", r.igSaves)),
+          h("td",{class:"mono"}, fmtNum("igProfileVisits", r.igProfileVisits)), h("td",{class:"mono"}, fmtNum("igLinkClicks", r.igLinkClicks)),
+          h("td",{class:"mono"}, r.igClickRate == null ? "—" : `${r.igClickRate}%`), h("td",{class:"mono"}, fmtNum("igReach", r.igReach)),
+          canContent() ? h("td",{}, h("button",{class:"btn sm ghost", type:"button", onclick:()=>openKpi(r.id)},"Edit")) : null)))))) : null,
+    h("p",{class:"small muted", style:"margin:0"},"LinkedIn and Mailchimp can be added here later in the same format.")
   ];
 }
 function openKpi(id){
   const r = id ? (S.kpis||[]).find(x=>x.id===id) : {};
   const now = new Date(), prevMonth = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const month = h("input",{type:"month", id:"kp-month"}); month.value = id || `${prevMonth.getFullYear()}-${pad(prevMonth.getMonth()+1)}`; month.disabled = !!id;
-  const inputs = METRICS.map(([k,l]) => { const i = h("input",{type:"text", inputmode:"decimal", id:"kp-"+k, placeholder:isRate(k) ? "e.g. 42.5" : "e.g. 1250"}); i.value = r[k]==null ? "" : String(r[k]); return [k,l,i]; });
-  const notes = h("textarea",{id:"kp-notes", rows:"3", placeholder:"What worked, and what you'll try next month"}); notes.value = r.notes || "";
+  const hints = {igFollowers:"Profile → follower count on the last day of the month", igShares:"Insights → Interactions → Shares", igSaves:"Insights → Interactions → Saves",
+    igProfileVisits:"Insights → Profile activity → Profile visits", igLinkClicks:"Insights → Profile activity → External link taps", igReach:"Insights → Accounts reached (optional)"};
+  const inputs = METRICS.map(([k,l]) => { const i = h("input",{type:"text", inputmode:"numeric", id:"kp-"+k, placeholder:"e.g. 1250"}); i.value = r[k]==null ? "" : String(r[k]); return [k,l,i]; });
+  const exp = h("textarea",{id:"kp-exp", rows:"2", placeholder:"New formats or ideas tried this month"}); exp.value = r.experiment || "";
+  const notes = h("textarea",{id:"kp-notes", rows:"3", placeholder:"What the numbers say, and what to try next month"}); notes.value = r.notes || "";
   const status = h("div",{class:"cmp-status"});
-  openDrawer(id ? `KPIs · ${monthLabel(id, true)}` : "Add a month's numbers", [
+  openDrawer(id ? `Instagram · ${monthLabel(id, true)}` : "Add a month", [
+    h("p",{class:"small muted", style:"margin:0"},"Use month totals from Instagram Insights (set the date range to that month)."),
     h("div",{class:"fields"}, h("div",{class:"field full"}, h("label",{for:"kp-month"},"Month"), month),
-      ...inputs.map(([k,l,i]) => h("div",{class:"field"}, h("label",{for:i.id}, l), i)),
-      h("div",{class:"field full"}, h("label",{for:"kp-notes"},"Notes for the meeting one-pager"), notes)),
+      ...inputs.map(([k,l,i]) => h("div",{class:"field"}, h("label",{for:i.id}, l), i, h("span",{class:"small muted"}, hints[k]))),
+      h("div",{class:"field full"}, h("label",{for:"kp-exp"},"What we tested"), exp),
+      h("div",{class:"field full"}, h("label",{for:"kp-notes"},"What we learned / try next"), notes)),
     h("div",{class:"d-actions"}, id ? deleteButton(async()=>{ await db.collection("kpis").doc(id).delete(); }, status) : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async()=>{
         if (!/^\d{4}-\d{2}$/.test(month.value)){ status.textContent = "Pick a month."; return; }
-        const data = {month:month.value, notes:notes.value.trim(), updatedAt:new Date().toISOString()};
+        const data = {month:month.value, experiment:exp.value.trim(), notes:notes.value.trim(), updatedAt:new Date().toISOString()};
         for (const [k,l,i] of inputs){
-          const v = i.value.replace(/[,%\s]/g,"");
+          const v = i.value.replace(/[,\s]/g,"");
           if (v === "") continue;
           if (isNaN(+v)){ status.textContent = `${l} needs a number.`; return; }
           data[k] = +v;
         }
-        try{ await db.collection("kpis").doc(month.value).set(data); closeDrawer(); toast("Saved."); }catch(e){ status.textContent = dbErr(e); }
+        try{ await db.collection("kpis").doc(month.value).set(data); S.kpiMonth = month.value; closeDrawer(); toast("Saved."); }catch(e){ status.textContent = dbErr(e); }
       }},"Save"))
   ]);
 }
+
 // first sign-in: ask for a display name and link the account to a teammate card
 function maybeOnboard(){
   if (S.onboardShown || !S.myEmail) return;
@@ -1176,8 +1220,8 @@ function viewMyTasks(){
   const tile = (n, label, tone) => h("div",{class:"panel stat"+(tone?" "+tone:"")}, h("div",{class:"stat-n"}, n), h("div",{class:"stat-l"}, label));
   const link = (label, view) => h("button",{class:"link", type:"button", onclick:()=>setView(view)}, label);
   const nextEvents = S.series.map(s => allEvents().filter(e=>e.seriesId===s.id && !e.cancelled && e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date))[0]).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date));
-  const k = S.kpis || [], last = k[k.length-1], prev = k[k.length-2];
-  const kd = last ? delta("igReach", last.igReach, prev?.igReach) : null;
+  const k = kpiRows(), last = k[k.length-1], prev = k[k.length-2];
+  const kd = last ? delta("igShares", last.igShares, prev?.igShares) : null;
   const teamPeek = S.team.slice().sort((a,b)=>(a.order??99)-(b.order??99)).slice(0,6);
   return [
     h("div",{class:"hello"}, h("h1",{}, `Hi ${me.name},`),
@@ -1201,8 +1245,10 @@ function viewMyTasks(){
             h("span",{class:"pill"}, daysUntil(e.date)===0 ? "Today" : `in ${daysUntil(e.date)}d`))) : h("div",{class:"empty"},"No upcoming meetups."))),
         roles.length ? card("Your event roles", null, h("div",{class:"p-tags", style:"padding:4px 18px 16px"}, ...roles.map(({label,r}) => h("span",{class:"p-tag"}, `${r.title} · ${label}`)))) : null,
         card("Analytics", link("View all","analytics"),
-          last ? h("div",{class:"mini-kpi"}, h("div",{class:"stat-l"}, `Instagram reach · ${monthLabel(last.id, true)}`), h("div",{class:"stat-n"}, fmtNum("igReach", last.igReach)),
-            kd ? h("div",{class:"small "+(kd.up?"up":"down")}, `${kd.up?"▲":"▼"} ${kd.text} vs ${monthLabel(prev.id)}`) : null)
+          last ? h("div",{class:"list"},
+            h("div",{class:"mini-row"}, h("span",{class:"kpi-n"},"1"), h("div",{}, h("div",{class:"t"},"Growth"), h("div",{class:"meta"}, monthLabel(last.id, true))), h("b",{}, signed(last.igGrowth))),
+            h("div",{class:"mini-row"}, h("span",{class:"kpi-n"},"2"), h("div",{}, h("div",{class:"t"},"Shares"), kd ? h("div",{class:"meta "+(kd.up?"up":"down")}, `${kd.up?"▲":"▼"} ${kd.text}`) : null), h("b",{}, fmtNum("igShares", last.igShares))),
+            h("div",{class:"mini-row"}, h("span",{class:"kpi-n"},"3"), h("div",{}, h("div",{class:"t"},"Link clicks"), last.igClickRate != null ? h("div",{class:"meta"}, `${last.igClickRate}% click rate`) : null), h("b",{}, fmtNum("igLinkClicks", last.igLinkClicks))))
             : h("div",{class:"empty"},"No KPIs entered yet.")),
         card("Team", link("View all","roles"),
           h("div",{class:"list"}, ...teamPeek.map(t => h("div",{class:"mini-row"}, avatar(t), h("div",{style:"min-width:0"}, h("div",{class:"t"}, t.name), h("div",{class:"meta"}, t.role||"")))))))
@@ -1277,7 +1323,7 @@ function openImport(){
   const file = h("input",{type:"file", id:"im-file", accept:".json,application/json"});
   const status = h("div",{class:"cmp-status", "aria-live":"polite"});
   openDrawer("Import data", [
-    h("p",{class:"small muted", style:"margin:0"},"Choose data-export/hub-data.json from the project folder. Items with the same ID are overwritten; nothing is deleted."),
+    h("p",{class:"small muted", style:"margin:0"},"Choose a data file from the project's data-export folder (the full hub-data.json, or a small patch file). Only the fields in the file change; nothing is deleted."),
     h("div",{class:"field"}, h("label",{for:"im-file"},"Data file"), file),
     h("div",{class:"d-actions"}, status, h("button",{class:"btn primary", type:"button", onclick:async()=>{
       const f = file.files[0]; if (!f){ status.textContent = "Choose the file first."; return; }
