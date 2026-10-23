@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FIESTA Media Hub</title>
+<link rel="icon" href="assets/fiesta-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <div class="gate-card">
+    <img src="assets/fiesta-logo.png" alt="FIESTA">
+    <h1>FIESTA Media Hub</h1>
+    <p id="gate-msg">Loading…</p>
+    <button id="gate-signin" class="btn primary" type="button" hidden>Sign in with Google</button>
+    <button id="gate-signout" class="btn ghost" type="button" hidden>Use a different account</button>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <div class="wide-wrap top-in">
+      <div class="brand">
+        <img class="logo-img" src="assets/fiesta-logo.png" alt="">
+        <div><div class="name">FIESTA Media Hub</div><div class="sub">FIESTA · FoundHERs · Newsletter</div></div>
+      </div>
+      <div class="top-actions">
+        <span id="access-badge" class="access-badge"></span>
+        <span id="who-email" class="who"></span>
+        <div class="me"><label for="me-select">You are</label><select id="me-select"></select></div>
+        <button id="bell" class="bell" type="button" aria-label="Your mentions"><b>@</b><span>Mentions</span><span id="bell-count" class="badge" hidden>0</span></button>
+        <button id="signout" class="btn sm" type="button">Sign out</button>
+      </div>
+    </div>
+  </header>
+  <div class="wide-wrap shell">
+    <nav class="side" id="tabs" role="tablist" aria-label="Sections" aria-orientation="vertical"></nav>
+    <main id="main"></main>
+  </div>
+  <div id="scrim" hidden></div>
+  <aside id="drawer" hidden aria-modal="true" role="dialog"></aside>
+  <div id="notif" hidden></div>
+  <div id="toast" hidden></div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+rules_version = '2';
+// Paste this into Firebase console → Firestore Database → Rules → Publish.
+// Keep the ADMIN list identical to ADMIN_EMAILS in config.js.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function email() { return request.auth.token.email.lower(); }
+    function bootstrapAdmin() { return signedIn() && email() in ['your_google_email@gmail.com']; }
+    function listed() { return signedIn() && exists(/databases/$(database)/documents/allowed/$(email())); }
+    function access() { return get(/databases/$(database)/documents/allowed/$(email())).data.get('access', 'member'); }
+    function isMember() { return bootstrapAdmin() || listed(); }
+    function isAdmin() { return bootstrapAdmin() || (listed() && access() == 'admin'); }
+    function canContent() { return isAdmin() || (listed() && access() == 'content'); }
+
+    // Who can sign in, and at what level. Only admins change it.
+    match /allowed/{e} {
+      allow read: if (signedIn() && e == email()) || isMember();
+      allow write: if isAdmin();
+    }
+    // The content calendar: admins and content managers edit, everyone else reads.
+    match /content/{id} {
+      allow read: if isMember();
+      allow write: if canContent();
+    }
+    // Everything else (tasks, chat, events, SOPs, roles…): any team member.
+    match /{coll}/{rest=**} {
+      allow read, write: if isMember() && !(coll in ['allowed', 'content']);
+    }
+  }
+}
