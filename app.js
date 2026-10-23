@@ -36,17 +36,24 @@ function parseDeliv(line){
 const keyOf = s => plainName(s).toLowerCase().replace(/[^a-z0-9]+/g,"-");
 const SOP_STATUS = ["Planned","Drafting","Published"];
 const LINKS = [
-  {key:"fiestaPhotos", label:"FIESTA photos", desc:"Event photos and founder headshots for FIESTA posts."},
-  {key:"foundhersPhotos", label:"FoundHERs photos", desc:"Photos from FoundHERs events and members."},
-  {key:"finished", label:"Exports", desc:"Finished reels, sizzle and pitch videos, ready to post or drop into the newsletter."},
-  {key:"fiestaFootage", label:"Fiesta Footage", desc:"Videographers upload all footage and the OBS recording by COB the next day. Founder interviews go in its Interviews sub-folder."},
-  {key:"videoAssets", label:"Fiesta Video Assets", desc:"Premiere project, FIESTA PNG and founders' logos for the editor."},
-  {key:"events", label:"Events archive", desc:"Past founders' photos and info for Founder WINs. Media team access requested from Cherie."},
-  {key:"marketing", label:"Marketing", desc:"The shared Marketing folder the media team can already open."},
-  {key:"brandKit", label:"Brand kit", desc:"Logos, fonts, colors and Canva templates."},
-  {key:"meetingNotes", label:"Meeting notes", desc:"Notes and recordings from every team meeting. Paste new notes on the Meetings page to turn them into tasks."}
+  {key:"fiestaAustin", label:"FIESTA originals: Austin", short:"Austin"},
+  {key:"fiestaRoundRock", label:"FIESTA originals: Round Rock", short:"Round Rock"},
+  {key:"production", label:"Content production files", short:"folder"},
+  {key:"brandKit", label:"Brand kit", short:"folder"},
+  {key:"meetings", label:"Meetings", short:"folder"}
 ];
-const VIEWS = [["mytasks","My tasks"],["calendar","Calendar"],["deadlines","Deadlines"],["events","Events"],["meetings","Meetings"],["roles","Roles"],["chat","Team chat"],["drive","Drive"],["sops","SOPs"]];
+const DRIVE_CARDS = [
+  {tag:"Originals", title:"FIESTA", desc:"Original photos and videos from Austin and Round Rock events.", keys:["fiestaAustin","fiestaRoundRock"], color:"var(--fiesta)"},
+  {tag:"Production", title:"Content production", desc:"Carousels, event recaps and interview videos.", keys:["production"], color:"var(--foundhers)"},
+  {tag:"Brand", title:"Brand kit", desc:"Logos, colors, fonts and templates.", keys:["brandKit"], color:"var(--regional)"},
+  {tag:"Company", title:"Meetings", desc:"Meeting notes, recordings and company files. Upload them here after each meeting.", keys:["meetings"], color:"var(--news)"}
+];
+const VIEWS = [["mytasks","My tasks"],["calendar","Calendar"],["analytics","Analytics"],["events","Event org chart"],["roles","Roles"],["chat","Team chat"],["drive","Drive"],["sops","SOPs"]];
+const METRICS = [
+  ["igFollowers","Instagram followers"],["igReach","Instagram accounts reached"],["igViews","Instagram views"],
+  ["igInteractions","Instagram interactions"],["igShares","Instagram shares"],["liFollowers","LinkedIn followers"],
+  ["nlSubscribers","Newsletter subscribers"],["nlOpenRate","Newsletter open rate (%)"]
+];
 const AREAS = ["Lead","Program","Media","Operations","After the event","Advisory"];
 const ROLE_TEMPLATE = [
   ["Lead","Event lead"],["Program","MC / host"],["Program","Pitch coordinator"],["Program","Judges & speakers contact"],
@@ -90,10 +97,11 @@ async function saveEventDoc(ev, patch){
   else await ref.update(patch);
 }
 
-const S = {team:[], content:[], messages:[], sops:[], links:{}, events:[], series:[], founders:[], tasks:[], meetings:[], allowed:[], access:null, allowedSub:null, eventId: load("hub.event") || "",
+const S = {team:[], content:[], messages:[], sops:[], links:{}, events:[], series:[], founders:[], tasks:[], meetings:[], kpis:[], metric:"igReach", chartId: load("hub.chart") || "", pitchOpen:false, allowed:[], access:null, allowedSub:null, eventId: load("hub.event") || "",
   view: load("hub.view") || "mytasks", month: firstOfMonth(new Date()), meId: load("hub.me") || "",
   hidden: new Set(), dbState:"loading", showDue: load("hub.showDue")==="1", myEmail:null, drawer:null};
 let chatBuilt = false;
+if (!VIEWS.some(([k]) => k === S.view) && S.view !== "access") S.view = "mytasks";
 
 /* ---------- helpers ---------- */
 function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
@@ -229,6 +237,116 @@ function start(){
   db.collection("series").onSnapshot(s => { S.series = s.docs.map(d=>({id:d.id, ...d.data()})); renderMain(); }, onErr);
   db.collection("tasks").onSnapshot(s => { S.tasks = s.docs.map(d=>({id:d.id, ...d.data()})); renderMain(); }, onErr);
   db.collection("meetings").onSnapshot(s => { S.meetings = s.docs.map(d=>({id:d.id, ...d.data()})); renderMain(); }, onErr);
+  db.collection("kpis").onSnapshot(s => { S.kpis = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>a.id.localeCompare(b.id)); renderMain(); }, onErr);
+}
+
+/* ---------- analytics ---------- */
+const monthLabel = (ym, long) => new Date(+ym.slice(0,4), +ym.slice(5,7)-1, 1).toLocaleDateString("en-US", long ? {month:"long", year:"numeric"} : {month:"short"});
+const isRate = k => k === "nlOpenRate";
+const fmtNum = (k, v) => v==null ? "—" : isRate(k) ? `${v}%` : Math.round(v).toLocaleString("en-US");
+const fmtAxis = (k, v) => isRate(k) ? `${Math.round(v)}%` : Math.abs(v) >= 1000 ? `${(v/1000).toFixed(v>=10000?0:1)}K` : String(Math.round(v));
+function delta(k, cur, prev){
+  if (cur==null || prev==null) return null;
+  if (isRate(k)) { const d = +(cur - prev).toFixed(1); return {up:d>=0, text:`${d>=0?"+":""}${d} pts`}; }
+  if (!prev) return null;
+  const p = (cur - prev) / prev * 100; return {up:p>=0, text:`${p>=0?"+":""}${p.toFixed(1)}%`};
+}
+// single-series line: 2px line, 8px markers, recessive grid, crosshair + tooltip on hover
+function lineChart(rows, key){
+  const pts = rows.filter(r => typeof r[key] === "number");
+  if (pts.length < 2) return h("div",{class:"empty"},"Add at least two months of numbers to see a trend.");
+  const W = 680, H = 240, L = 52, R = 20, T = 18, B = 34;
+  const vals = pts.map(p => p[key]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (lo === hi){ lo -= 1; hi += 1; }
+  const padv = (hi - lo) * 0.15; lo = Math.max(0, lo - padv); hi += padv;
+  const x = i => L + (W - L - R) * (i / (pts.length - 1));
+  const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  const ticks = [0,1,2,3].map(i => lo + (hi - lo) * i / 3);
+  const path = pts.map((p,i) => `${i?"L":"M"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
+  const area = `${path} L${x(pts.length-1).toFixed(1)},${H-B} L${x(0).toFixed(1)},${H-B} Z`;
+  const wrap = h("div",{class:"lc"});
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Monthly trend">
+    ${ticks.map(t => `<line x1="${L}" x2="${W-R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" class="lc-grid"/><text x="${L-8}" y="${(y(t)+4).toFixed(1)}" text-anchor="end" class="lc-axis">${fmtAxis(key,t)}</text>`).join("")}
+    ${pts.map((p,i) => `<text x="${x(i).toFixed(1)}" y="${H-10}" text-anchor="middle" class="lc-axis">${monthLabel(p.id)}</text>`).join("")}
+    <path d="${area}" class="lc-area"/><path d="${path}" class="lc-line"/>
+    ${pts.map((p,i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p[key]).toFixed(1)}" r="${i===pts.length-1?5:4}" class="lc-dot${i===pts.length-1?" end":""}"/>`).join("")}
+    <line class="lc-cross" y1="${T}" y2="${H-B}" x1="0" x2="0" visibility="hidden"/>
+    <rect x="${L}" y="${T}" width="${W-L-R}" height="${H-T-B}" fill="transparent" class="lc-hit"/></svg>`;
+  const tip = h("div",{class:"lc-tip", hidden:true}); wrap.append(tip);
+  const svg = wrap.querySelector("svg"), cross = wrap.querySelector(".lc-cross");
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(pts.length-1, Math.round((sx - L) / ((W - L - R) / (pts.length - 1)))));
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility","visible");
+    tip.replaceChildren(h("div",{class:"small muted"}, monthLabel(pts[i].id, true)), h("b",{}, fmtNum(key, pts[i][key])));
+    tip.hidden = false;
+    const px = x(i) * r.width / W;
+    tip.style.left = Math.min(Math.max(px, 60), r.width - 60) + "px"; tip.style.top = (y(pts[i][key]) * r.height / H) + "px";
+  };
+  svg.querySelector(".lc-hit").addEventListener("pointermove", move);
+  svg.querySelector(".lc-hit").addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("visibility","hidden"); });
+  return wrap;
+}
+function viewAnalytics(){
+  const rows = S.kpis || [];
+  const last = rows[rows.length-1], prev = rows[rows.length-2];
+  const key = METRICS.some(([k])=>k===S.metric) ? S.metric : "igReach";
+  const ym = `${S.month.getFullYear()}-${pad(S.month.getMonth()+1)}`;
+  const inMonth = S.content.filter(c => (c.publishDate||"").slice(0,7) === ym && c.type !== "Shoot");
+  const pub = inMonth.filter(c => DONE.has(c.status)).length;
+  const byType = {}; for (const c of inMonth) byType[c.type] = (byType[c.type]||0) + 1;
+  const tile = ([k,l]) => { const d = last ? delta(k, last[k], prev?.[k]) : null;
+    return h("div",{class:"panel stat"}, h("div",{class:"stat-l", style:"margin:0 0 6px"}, l), h("div",{class:"stat-n"}, fmtNum(k, last?.[k])),
+      d ? h("div",{class:"small "+(d.up?"up":"down"), style:"margin-top:6px"}, `${d.up?"▲":"▼"} ${d.text} vs ${monthLabel(prev.id)}`) : h("div",{class:"small muted", style:"margin-top:6px"}, last ? "No earlier month to compare" : "No numbers yet")); };
+  return [
+    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Analytics"), h("h2",{}, last ? `KPIs · ${monthLabel(last.id, true)}` : "Monthly KPIs")),
+      canContent() ? h("button",{class:"btn primary", type:"button", onclick:()=>openKpi(null)},"+ Add a month's numbers") : null),
+    h("p",{class:"small muted", style:"margin:-12px 0 0"},"Enter numbers from Instagram Insights, LinkedIn and Mailchimp once a month, after the month closes. Compare full months only."),
+    h("div",{class:"stats"}, ...[METRICS[1], METRICS[0], METRICS[3], METRICS[6]].map(tile)),
+    h("section",{class:"panel", style:"padding:16px 18px"},
+      h("div",{class:"spread", style:"align-items:center; margin-bottom:8px"}, h("h3",{}, (METRICS.find(([k])=>k===key)||[])[1] + " by month"),
+        h("select",{"aria-label":"Metric", onchange:ev=>{ S.metric = ev.target.value; renderMain(); }}, ...METRICS.map(([k,l]) => { const o = h("option",{value:k}, l); if (k===key) o.selected = true; return o; }))),
+      lineChart(rows, key)),
+    last?.notes ? h("section",{class:"panel", style:"padding:16px 18px"}, h("div",{class:"eyebrow"}, `What we'll try next · ${monthLabel(last.id, true)}`), h("p",{style:"margin:6px 0 0; white-space:pre-wrap"}, last.notes)) : null,
+    h("section",{}, h("div",{class:"group-h"}, h("h3",{},"All months")),
+      h("div",{class:"panel kpi-scroll"}, rows.length ? h("table",{class:"plan-table kpi-table"},
+        h("thead",{}, h("tr",{}, h("th",{},"Month"), ...METRICS.map(([,l])=>h("th",{}, l)), canContent() ? h("th",{},"") : null)),
+        h("tbody",{}, ...rows.slice().reverse().map(r => h("tr",{}, h("td",{}, h("b",{}, monthLabel(r.id, true))), ...METRICS.map(([k])=>h("td",{class:"mono"}, fmtNum(k, r[k]))),
+          canContent() ? h("td",{}, h("button",{class:"btn sm ghost", type:"button", onclick:()=>openKpi(r.id)},"Edit")) : null))))
+        : h("div",{class:"empty"},"No months entered yet."))),
+    h("section",{}, h("div",{class:"group-h"}, h("h3",{}, `From the calendar · ${monthLabel(ym, true)}`), h("span",{class:"small muted"},"change the month on the Calendar page")),
+      h("div",{class:"stats"},
+        h("div",{class:"panel stat"}, h("div",{class:"stat-n"}, inMonth.length), h("div",{class:"stat-l"},"posts planned")),
+        h("div",{class:"panel stat"}, h("div",{class:"stat-n"}, pub), h("div",{class:"stat-l"},"published")),
+        h("div",{class:"panel stat"}, h("div",{class:"stat-n"}, inMonth.length ? Math.round(pub / inMonth.length * 100) + "%" : "—"), h("div",{class:"stat-l"},"of plan published"))),
+      Object.keys(byType).length ? h("div",{class:"p-tags", style:"margin-top:10px"}, ...Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([t,n]) => h("span",{class:"p-tag"}, `${t} · ${n}`))) : null)
+  ];
+}
+function openKpi(id){
+  const r = id ? (S.kpis||[]).find(x=>x.id===id) : {};
+  const now = new Date(), prevMonth = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const month = h("input",{type:"month", id:"kp-month"}); month.value = id || `${prevMonth.getFullYear()}-${pad(prevMonth.getMonth()+1)}`; month.disabled = !!id;
+  const inputs = METRICS.map(([k,l]) => { const i = h("input",{type:"text", inputmode:"decimal", id:"kp-"+k, placeholder:isRate(k) ? "e.g. 42.5" : "e.g. 1250"}); i.value = r[k]==null ? "" : String(r[k]); return [k,l,i]; });
+  const notes = h("textarea",{id:"kp-notes", rows:"3", placeholder:"What worked, and what you'll try next month"}); notes.value = r.notes || "";
+  const status = h("div",{class:"cmp-status"});
+  openDrawer(id ? `KPIs · ${monthLabel(id, true)}` : "Add a month's numbers", [
+    h("div",{class:"fields"}, h("div",{class:"field full"}, h("label",{for:"kp-month"},"Month"), month),
+      ...inputs.map(([k,l,i]) => h("div",{class:"field"}, h("label",{for:i.id}, l), i)),
+      h("div",{class:"field full"}, h("label",{for:"kp-notes"},"Notes for the meeting one-pager"), notes)),
+    h("div",{class:"d-actions"}, id ? deleteButton(async()=>{ await db.collection("kpis").doc(id).delete(); }, status) : h("span",{}),
+      h("button",{class:"btn primary", type:"button", onclick:async()=>{
+        if (!/^\d{4}-\d{2}$/.test(month.value)){ status.textContent = "Pick a month."; return; }
+        const data = {month:month.value, notes:notes.value.trim(), updatedAt:new Date().toISOString()};
+        for (const [k,l,i] of inputs){
+          const v = i.value.replace(/[,%\s]/g,"");
+          if (v === "") continue;
+          if (isNaN(+v)){ status.textContent = `${l} needs a number.`; return; }
+          data[k] = +v;
+        }
+        try{ await db.collection("kpis").doc(month.value).set(data); closeDrawer(); toast("Saved."); }catch(e){ status.textContent = dbErr(e); }
+      }},"Save"))
+  ]);
 }
 // the signed-in Google email decides who you are; the "You are" picker is only a fallback
 function autoMatch(){
@@ -246,37 +364,46 @@ function renderTabs(){
 }
 function setView(k){ S.view = k; save("hub.view", k); chatBuilt = false; renderTabs(); renderMain(); }
 function renderHeader(){
-  const sel = document.getElementById("me-select");
-  const cur = S.meId;
-  sel.replaceChildren(h("option",{value:""},"Choose your name"), ...S.team.map(t => h("option",{value:t.id}, t.name)));
-  sel.value = teamById(cur) ? cur : "";
-  const linked = S.team.some(t => (t.email||"").toLowerCase() === S.myEmail);
-  sel.disabled = linked;
-  sel.title = linked ? "Set by your sign-in email" : "Your email isn't on a teammate yet; pick your name";
-  sel.onchange = () => { S.meId = sel.value; save("hub.me", sel.value); renderHeader(); renderMain(); };
-  const unread = myMentions().filter(m => m.createdAt > myLastSeen()).length;
-  const b = document.getElementById("bell-count"); b.textContent = unread; b.hidden = !unread;
+  const n = notifications(), seen = myLastSeen();
+  const count = n.filter(x => x.sticky || (x.at||"") > seen).length;
+  const b = document.getElementById("bell-count"); b.textContent = count; b.hidden = !count;
 }
 function myMentions(){ return S.meId ? S.messages.filter(m => (m.mentions||[]).includes(S.meId) && m.authorId !== S.meId) : []; }
-
+// one feed: what needs you now (sticky) + what happened (mentions, new tasks)
+function notifications(){
+  if (!S.meId) return [];
+  const out = [];
+  const mine = S.content.filter(c => (c.ownerIds||[]).includes(S.meId) && !DONE.has(c.status));
+  for (const c of mine.filter(c => c.deadline && daysUntil(c.deadline) <= 2)){
+    const d = daysUntil(c.deadline);
+    out.push({sticky:true, tone: d<0 ? "bad" : "warn", label: d<0 ? `${-d}d overdue` : d===0 ? "Due today" : `Due ${fmtShort(c.deadline)}`, text:c.title, go:()=>openItem(c.id)});
+  }
+  for (const c of mine.filter(c => c.needsReview)) out.push({sticky:true, tone:"warn", label:"Review", text:c.title, go:()=>openItem(c.id)});
+  for (const m of myMentions()){
+    const item = m.thread!=="general" ? S.content.find(c=>c.id===m.thread) : null;
+    out.push({at:m.createdAt, label:`${nameOf(m.authorId)} mentioned you` + (item ? ` on “${item.title}”` : " in chat"), text:m.text, go:()=> item ? openItem(item.id) : setView("chat")});
+  }
+  for (const t of S.tasks.filter(t => t.ownerId===S.meId && !t.done && t.createdBy && t.createdBy!==S.meId))
+    out.push({at:t.createdAt, label:`New task from ${nameOf(t.createdBy)}`, text:t.text + (t.due ? ` · due ${fmtShort(t.due)}` : ""), go:()=>setView("mytasks")});
+  return out;
+}
 document.getElementById("bell").onclick = () => {
   const p = document.getElementById("notif");
   if (!p.hidden){ p.hidden = true; return; }
-  const seen = myLastSeen();
-  const list = myMentions().slice().reverse();
+  const seen = myLastSeen(), n = notifications();
+  const now = n.filter(x=>x.sticky);
+  const recent = n.filter(x=>!x.sticky).sort((a,b)=>(b.at||"").localeCompare(a.at||"")).slice(0, 25);
+  const row = x => h("button",{class:"n-item"+(!x.sticky && (x.at||"")>seen ? " unread" : ""), type:"button", onclick:()=>{ p.hidden = true; x.go(); }},
+    h("div",{class:"small"}, x.sticky ? h("span",{class:"pill "+x.tone, style:"margin-right:6px"}, x.label) : h("b",{}, x.label), x.at ? h("span",{class:"mono muted"}, " · "+relTime(x.at)) : null),
+    h("div",{class:"small muted", style:"margin-top:2px"}, x.text.length>140 ? x.text.slice(0,140)+"…" : x.text));
   p.replaceChildren(
-    h("div",{class:"d-head"}, h("h3",{},"Mentions"), h("button",{class:"btn ghost sm", type:"button", onclick:()=>p.hidden=true},"Close")),
-    !S.meId ? h("div",{class:"empty"},"Choose your name at the top to see who mentioned you.")
-    : !list.length ? h("div",{class:"empty"},"No mentions yet. When someone types @"+nameOf(S.meId)+", it shows up here.")
-    : h("div",{}, ...list.map(m => {
-        const item = m.thread!=="general" ? S.content.find(c=>c.id===m.thread) : null;
-        return h("button",{class:"n-item"+(m.createdAt>seen?" unread":""), type:"button", onclick:()=>{ p.hidden=true; if (item) openItem(item.id); else setView("chat"); }},
-          h("div",{class:"small"}, h("b",{}, nameOf(m.authorId)), " mentioned you ", item ? `on “${item.title}”` : "in team chat", h("span",{class:"mono muted"}, " · "+relTime(m.createdAt))),
-          h("div",{class:"small muted", style:"margin-top:2px"}, m.text.length>140 ? m.text.slice(0,140)+"…" : m.text));
-      }))
+    h("div",{class:"d-head"}, h("h3",{},"Notifications"), h("button",{class:"btn ghost sm", type:"button", onclick:()=>p.hidden=true},"Close")),
+    !S.meId ? h("div",{class:"empty"},"Ask an admin to put your sign-in email on your Roles card so notifications can find you.")
+    : !n.length ? h("div",{class:"empty"},"You're all caught up.")
+    : h("div",{}, now.length ? h("div",{class:"ev-group"},"Needs you") : null, ...now.map(row), recent.length ? h("div",{class:"ev-group"},"Recent") : null, ...recent.map(row))
   );
   p.hidden = false;
-  if (S.meId && list.length){ save("hub.seen."+S.meId, list[0].createdAt); renderHeader(); }
+  if (S.meId && recent.length){ save("hub.seen."+S.meId, recent[0].at); renderHeader(); }
 };
 
 /* ---------- main ---------- */
@@ -285,7 +412,7 @@ function renderMain(teamChanged){
   if (S.view==="chat" && chatBuilt && !teamChanged){ updateThreads(); return; }
   const banner = S.dbState==="off" ? h("div",{class:"notice"},"Couldn't reach the team's data. Check your connection and reload.")
     : S.dbState==="loading" ? h("div",{class:"notice muted"},"Loading the team's calendar…") : null;
-  const views = {mytasks:viewMyTasks, calendar:viewCalendar, deadlines:viewDeadlines, events:viewEvents, meetings:viewMeetings, roles:viewRoles, chat:viewChat, drive:viewDrive, sops:viewSops, access:viewAccess};
+  const views = {mytasks:viewMyTasks, calendar:viewCalendar, analytics:viewAnalytics, events:viewEvents, roles:viewRoles, chat:viewChat, drive:viewDrive, sops:viewSops, access:viewAccess};
   main.replaceChildren(...[banner, ...(views[S.view]||viewCalendar)()].filter(Boolean));
   if (S.view==="chat"){ chatBuilt = true; updateThreads(); }
 }
@@ -314,12 +441,11 @@ function viewCalendar(){
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i), key = ymd(d);
     cells.push(h("div",{class:"day"+(d.getMonth()!==mo?" out":"")+(key===today()?" today":"")},
       h("span",{class:"dnum"}, d.getDate()),
-      ...(byEv[key]||[]).map(e => h("button",{class:"ev meet", type:"button", style:`--c:${(BRANDS[e.brand]||{}).c||"var(--muted)"}`, title:e.name, onclick:()=>{ S.eventId = e.id; save("hub.event", e.id); setView("events"); }}, h("span",{class:"k"},"event"), e.recurring ? (seriesById(e.seriesId)?.name || e.name) : e.name)),
+      ...(byEv[key]||[]).map(e => h("button",{class:"ev meet", type:"button", style:`--c:${(BRANDS[e.brand]||{}).c||"var(--muted)"}`, title:e.name, onclick:()=>{ if (e.seriesId){ S.chartId = e.seriesId; save("hub.chart", e.seriesId); } setView("events"); }}, h("span",{class:"k"},"event"), e.recurring ? (seriesById(e.seriesId)?.name || e.name) : e.name)),
       ...(byPub[key]||[]).map(it => h("button",{class:`ev st-${slug(it.status)}`+(it.needsReview?" review":"")+(isLate(it)?" late":""), type:"button", style:`--c:${(BRANDS[it.brand]||{}).c||"var(--muted)"}`, title:`${it.title} · ${it.status}${it.deadline?" · due "+fmtShort(it.deadline):""}${it.needsReview?" · needs review":""}${isLate(it)?" · past its date, not published":""}`, onclick:()=>openItem(it.id)}, h("span",{class:"k"}, (it.status==="Published"?"✓ ":"") + (it.time || (it.type==="Shoot"?"shoot":"post"))), it.title)),
       ...(byDue[key]||[]).map(it => h("button",{class:"ev due", type:"button", style:`--c:${(BRANDS[it.brand]||{}).c||"var(--muted)"}`, title:"Due: "+it.title, onclick:()=>openItem(it.id)}, h("span",{class:"k"},"due"), it.title))
     ));
   }
-  const unscheduled = items.filter(c => !c.publishDate && !c.deadline && !DONE.has(c.status));
   const inMonth = items.filter(c => (c.publishDate||"").slice(0,7) === `${y}-${pad(mo+1)}`);
   const lateN = inMonth.filter(isLate).length;
   const stKey = h("div",{class:"st-key"}, h("span",{class:"muted"},"This month:"),
@@ -342,9 +468,7 @@ function viewCalendar(){
     items.some(c=>c.needsReview) ? h("div",{class:"notice"}, h("b",{}, items.filter(c=>c.needsReview).length + " drafted posts need review. "), "They have an amber outline. Open one, fix anything that's off, and click “Looks good.”") : null,
     h("div",{class:"panel cal-scroll"}, h("div",{class:"cal"}, cells)),
     h("p",{class:"small muted", style:"margin:-10px 0 0"},"Faded = in progress. Tinted = scheduled. Solid with ✓ = published. Red outline = date passed, not published. Dark = meetup. Click any post for its deadline, content and finished file."),
-    h("section",{},
-      h("div",{class:"group-h"}, h("h3",{},"Not on the calendar yet"), h("span",{class:"count"}, unscheduled.length)),
-      h("div",{class:"panel list"}, unscheduled.length ? unscheduled.map(itemRow) : h("div",{class:"empty"},"Everything open has a date.")))
+    ...deadlineSections()
   ];
 }
 
@@ -356,22 +480,21 @@ function itemRow(it){
     h("div",{class:"when"}, it.deadline ? h("span",{class:"mono"}, fmtShort(it.deadline)) : null, deadlinePill(it)));
 }
 
-function viewDeadlines(){
+function deadlineSections(){
   const open = visibleContent().filter(c => !DONE.has(c.status));
   const dated = open.filter(c=>c.deadline).sort((a,b)=>a.deadline.localeCompare(b.deadline));
-  const groups = [
-    ["Overdue", dated.filter(c=>daysUntil(c.deadline)<0)],
-    ["Next 7 days", dated.filter(c=>{const n=daysUntil(c.deadline); return n>=0 && n<=7;})],
-    ["Later", dated.filter(c=>daysUntil(c.deadline)>7)],
-    ["No deadline set", open.filter(c=>!c.deadline)]
-  ];
+  const overdue = dated.filter(c=>daysUntil(c.deadline)<0);
+  const week = dated.filter(c=>{ const n = daysUntil(c.deadline); return n>=0 && n<=7; });
+  const later = dated.filter(c=>daysUntil(c.deadline)>7), none = open.filter(c=>!c.deadline);
+  const block = (label, list, empty) => h("section",{}, h("div",{class:"group-h"}, h("h3",{}, label), h("span",{class:"count"}, list.length)),
+    h("div",{class:"panel list"}, list.length ? list.map(itemRow) : h("div",{class:"empty"}, empty)));
+  const fold = (label, list) => list.length ? h("details",{class:"panel fold"}, h("summary",{}, label, h("span",{class:"count"}, " " + list.length)), h("div",{class:"list"}, ...list.map(itemRow))) : null;
   return [
-    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Content deadlines"), h("h2",{},"What's due, soonest first")),
-      canContent() ? h("button",{class:"btn primary", type:"button", onclick:()=>openItem(null)},"+ New item") : null),
-    legend(),
-    ...groups.map(([label, list]) => h("section",{},
-      h("div",{class:"group-h"}, h("h3",{}, label), h("span",{class:"count"}, list.length)),
-      h("div",{class:"panel list"}, list.length ? list.map(itemRow) : h("div",{class:"empty"}, label==="Overdue" ? "Nothing overdue." : "Nothing here."))))
+    h("div",{class:"dl-head"}, h("div",{class:"eyebrow"},"Deadlines"), h("h2",{},"What's due, soonest first")),
+    overdue.length ? block("Overdue", overdue, "") : null,
+    block("Next 7 days", week, "Nothing due in the next 7 days."),
+    fold("Later", later),
+    fold("No deadline set", none)
   ];
 }
 
@@ -465,46 +588,21 @@ function viewChat(){
 /* ---------- drive ---------- */
 function viewDrive(){
   return [
-    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Google Drive"), h("h2",{},"Only the folders the media team needs")),
+    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Google Drive"), h("h2",{},"Team folders")),
       h("button",{class:"btn", type:"button", onclick:openLinks},"Edit folder links")),
-    h("p",{class:"small muted", style:"margin:-12px 0 0"},"No one needs access to the whole Drive. The folder owner shares just these folders with the media team, and the links live here so nobody digs through “Shared with me.”"),
-    h("div",{class:"cards"}, ...LINKS.map(L => {
-      const url = safeUrl(S.links[L.key]);
-      return h("div",{class:"panel card"}, h("h3",{}, L.label), h("p",{}, L.desc),
-        h("div",{class:"row"}, url ? h("a",{class:"btn primary sm", href:url, target:"_blank", rel:"noopener"},"Open folder ↗") : h("button",{class:"btn sm", type:"button", onclick:openLinks},"Add link")));
-    })),
-    h("div",{class:"two"},
-      h("section",{class:"panel card"},
-        h("div",{class:"eyebrow"},"Proposed structure"),
-        h("h3",{},"One parent folder for the media team"),
-        h("p",{},"From the Oct meeting: one clear parent folder everyone can find, with access limited only on the folders that need it. No more digging through “Shared with me.”"),
-        h("pre",{class:"tree"},
-`FIESTA Media/                  (whole media team)
-├── Fiesta Video Assets/       Premiere file, FIESTA PNG, logos
-├── 2026-11 November/
-│   ├── Photos/                photographer
-│   ├── Fiesta Footage/        videographer + OBS recording
-│   │   └── Interviews/        founder interviewer
-│   └── Exports/               phone reels + editor exports
-├── 2026-10 October/
-├── FoundHERs/
-├── Brand kit/
-├── SOPs/
-└── KPI reports/
-
-Events/                        (restricted; media = view only)`)),
-      h("section",{class:"panel card"},
-        h("div",{class:"eyebrow"},"House rules"),
-        h("h3",{},"Naming and handoff"),
-        h("ol",{class:"rules"},
-          h("li",{},"Name files ", h("span",{class:"code"},"YYYY-MM-DD_Brand_Type_Title_v1"), ", for example ", h("span",{class:"code"},"2026-10-29_FIESTA_Reel_TechWeekPanel_v2"),"."),
-          h("li",{},"Every FIESTA month gets its own folder with ", h("b",{},"Photos"),", ", h("b",{},"Fiesta Footage")," (with ", h("b",{},"Interviews"),") and ", h("b",{},"Exports"),", per the media SOP."),
-          h("li",{},"Footage and the OBS recording go up by COB the day after the event, so the editor can start."),
-          h("li",{},"Paste the finished file's link into its calendar item, so the newsletter team can find it."),
-          h("li",{},"Need a restricted folder? Ask in Team chat and @mention Cherie.")),
-        h("p",{class:"small"},"This is a draft for the team to agree on. Edit it with Esther before anyone moves files.")))
+    h("p",{class:"small muted", style:"margin:-12px 0 0"},"Shortcuts to the team's shared Google Drive folders. Upload files in Drive; these open the right folder."),
+    h("div",{class:"drive-grid"}, ...DRIVE_CARDS.map(c => h("div",{class:"panel drive-card", style:`--c:${c.color}`},
+      h("div",{class:"dc-tag"}, c.tag),
+      h("h3",{}, c.title), h("p",{}, c.desc),
+      h("div",{class:"row"}, ...c.keys.map(k => {
+        const L = LINKS.find(x=>x.key===k), u = safeUrl(S.links[k]);
+        const label = c.keys.length > 1 ? L.short : "folder";
+        return u ? h("a",{class:"btn primary sm", href:u, target:"_blank", rel:"noopener"}, `Open ${label} ↗`)
+          : h("button",{class:"btn sm", type:"button", onclick:openLinks}, `Add ${label} link`);
+      })))))
   ];
 }
+
 function openLinks(){
   const inputs = LINKS.map(L => { const i = h("input",{type:"url", id:"lnk-"+L.key, placeholder:"https://drive.google.com/drive/folders/…"}); i.value = S.links[L.key] || ""; return [L, i]; });
   const status = h("div",{class:"cmp-status"});
@@ -785,74 +883,53 @@ function currentEvent(){
     || evs.filter(e=>e.date && e.date>=today() && !e.cancelled).sort((a,b)=>a.date.localeCompare(b.date))[0]
     || evs.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];
 }
+function groupRoles(list){
+  const m = new Map();
+  for (const r of list){
+    const key = r.personId || r.name || "open:" + r.title;
+    if (!m.has(key)) m.set(key, {personId:r.personId, name:r.name, titles:[]});
+    m.get(key).titles.push(r.title);
+  }
+  return [...m.values()];
+}
+function ocNode(g){
+  const p = g.personId ? teamById(g.personId) : null, nm = p ? p.name : g.name;
+  return h("div",{class:"oc-node"+(nm ? "" : " open")},
+    nm ? avatar(p || {name:nm}) : h("span",{class:"av oc-q", "aria-hidden":"true"},"?"),
+    h("div",{style:"min-width:0"}, h("div",{class:"oc-name"}, nm || "Open role"), h("div",{class:"oc-role"}, g.titles.join(" · "))));
+}
+function founderRow(e, f){
+  return h("button",{class:"item", type:"button", onclick:()=>openFounder(e, f.id)},
+    avatar({name:f.name}),
+    h("div",{style:"min-width:0"}, h("div",{class:"t"}, f.name, f.company ? h("span",{class:"muted"}, " · "+f.company) : null),
+      f.oneLiner ? h("div",{class:"meta"}, f.oneLiner) : null,
+      h("div",{class:"links", style:"margin-top:4px"}, ...[["LinkedIn",f.linkedin],["Instagram",f.instagram],["Website",f.website],["Headshot",f.photoUrl]].filter(([,u])=>safeUrl(u)).map(([l,u]) => h("a",{href:u, target:"_blank", rel:"noopener", onclick:ev=>ev.stopPropagation()}, l+" ↗")))),
+    h("div",{class:"when"}, h("span",{class:"pill"+(f.contentStatus==="Posted"?" ok":f.contentStatus&&f.contentStatus!=="Not started"?" warn":"")}, f.contentStatus||"Not started")));
+}
 function viewEvents(){
-  const evs = allEvents();
-  const cur = currentEvent();
-  watchFounders(cur ? cur.id : null);
-  const specials = evs.filter(e=>!e.recurring).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-  const nextOf = sid => evs.filter(e=>e.seriesId===sid && !e.cancelled && e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  const go = id => { S.eventId = id; save("hub.event", id); renderMain(); };
+  const series = S.series.slice().sort((a,b)=>(a.id==="fiesta"?0:1)-(b.id==="fiesta"?0:1));
+  if (!series.length) return [h("div",{class:"panel empty"},"No events set up yet.")];
+  const cur = series.find(s=>s.id===S.chartId) || series[0];
+  const next = allEvents().filter(e=>e.seriesId===cur.id && !e.cancelled && e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date))[0];
+  watchFounders(next ? next.id : null);
+  const asEvent = {recurring:true, seriesId:cur.id, roles:cur.roles||[], name:cur.name};
+  const areas = AREAS.map(a => [a, groupRoles((cur.roles||[]).filter(r=>r.area===a))]).filter(([,l])=>l.length);
   return [
-    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Events"), h("h2",{},"Who does what at our events")),
-      h("button",{class:"btn", type:"button", onclick:()=>openEvent(null)},"+ Special event")),
-    h("p",{class:"small muted", style:"margin:-12px 0 0"},"FIESTA and FoundHERs keep the same roles every meetup. Switch months only to manage that month's pitchers and deliverables."),
-    h("div",{class:"ev-layout"},
-      h("div",{class:"panel"},
-        h("div",{class:"ev-group"},"Every month"),
-        ...S.series.map(s => { const n = nextOf(s.id);
-          return h("button",{class:"ev-pick", type:"button", "aria-current": String(!!cur && cur.seriesId===s.id), onclick:()=>{ const t = n || evs.find(e=>e.seriesId===s.id); if (t) go(t.id); }},
-            h("div",{class:"row", style:"justify-content:space-between"}, brandChip(s.brand), n ? h("span",{class:"mono muted"}, "Next " + fmtShort(n.date)) : null),
-            h("span",{class:"t"}, s.name), h("span",{class:"small muted"}, ruleText(s.rule))); }),
-        specials.length ? h("div",{class:"ev-group"},"Special events") : null,
-        ...specials.map(e => h("button",{class:"ev-pick", type:"button", "aria-current": String(!!cur && e.id===cur.id), onclick:()=>go(e.id)},
-          h("div",{class:"row", style:"justify-content:space-between"}, brandChip(e.brand), h("span",{class:"mono muted"}, e.date ? fmtShort(e.date) : "No date")),
-          h("span",{class:"t"}, e.name)))),
-      cur ? eventDetail(cur) : h("div",{class:"panel empty"},"Pick an event."))
+    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Event org chart"), h("h2",{},"Who does what at our events")),
+      h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:()=>openSeries(cur.id)},"Schedule"),
+        h("button",{class:"btn primary", type:"button", onclick:()=>openRoles(asEvent)},"Edit roles"))),
+    h("div",{class:"seg oc-switch", role:"group", "aria-label":"Event"}, ...series.map(s => h("button",{type:"button", "aria-pressed": String(s.id===cur.id), onclick:()=>{ S.chartId = s.id; save("hub.chart", s.id); renderMain(); }}, s.name))),
+    h("section",{class:"panel oc", style:`--c:${(BRANDS[cur.brand]||{}).c||"var(--accent)"}`},
+      h("div",{class:"oc-root"}, h("div",{class:"oc-title"}, cur.name), h("div",{class:"oc-sub"}, ruleText(cur.rule) + (next ? " · next " + fmt(next.date) : ""))),
+      areas.length ? h("div",{class:"oc-areas"}, ...areas.map(([a, people]) => h("div",{class:"oc-col"}, h("div",{class:"oc-area"}, a), ...people.map(ocNode))))
+        : h("div",{class:"empty", style:"text-align:center"}, "No roles yet. ", h("button",{class:"btn sm", type:"button", onclick:()=>useTemplate(asEvent)},"Start from the template"))),
+    next ? h("details",{class:"panel fold", open:S.pitchOpen, ontoggle:ev=>{ S.pitchOpen = ev.target.open; }},
+      h("summary",{}, `Pitchers at the next ${cur.name} · ${fmtShort(next.date)}`, h("span",{class:"count"}, " " + S.founders.length)),
+      h("div",{class:"list"}, ...(S.founders.length ? S.founders.map(f=>founderRow(next, f)) : [h("div",{class:"empty"},"No pitchers added yet.")])),
+      h("div",{style:"padding:10px 14px"}, h("button",{class:"btn sm", type:"button", onclick:()=>openFounder(next, null)},"+ Add a pitcher"))) : null
   ];
 }
-function eventDetail(e){
-  const photos = safeUrl(e.photosUrl), info = safeUrl(e.infoUrl);
-  const byArea = AREAS.map(a => [a, (e.roles||[]).filter(r=>r.area===a)]).filter(([,l])=>l.length);
-  return h("div",{class:"ev-detail"},
-    h("section",{class:"panel ev-hero"},
-      h("div",{class:"row"}, brandChip(e.brand), e.recurring ? h("span",{class:"small muted"}, ruleText(seriesById(e.seriesId)?.rule)) : e.date ? h("span",{class:"mono muted"}, fmt(e.date)) : null, e.venue ? h("span",{class:"small muted"}, "· "+e.venue) : null),
-      h("h2",{}, e.recurring ? (seriesById(e.seriesId)?.name || e.name) : e.name),
-      e.recurring ? h("div",{class:"months-row"}, h("span",{class:"small muted"},"Month:"),
-        h("div",{class:"seg", role:"group", "aria-label":"Month"}, ...allEvents().filter(x=>x.seriesId===e.seriesId).sort((a,b)=>a.date.localeCompare(b.date)).map(x =>
-          h("button",{type:"button", "aria-pressed": String(x.id===e.id), title: x.cancelled ? "No meetup" : fmt(x.date), onclick:()=>{ S.eventId = x.id; save("hub.event", x.id); renderMain(); }},
-            parse(x.date).toLocaleDateString("en-US",{month:"short", day:"numeric"}) + (x.cancelled ? " ·off" : ""))))) : null,
-      e.notes ? h("div",{class:"small", style:"white-space:pre-wrap"}, e.notes) : null,
-      h("div",{class:"row"},
-        photos ? h("a",{class:"btn sm", href:photos, target:"_blank", rel:"noopener"},"Photos folder ↗") : null,
-        info ? h("a",{class:"btn sm", href:info, target:"_blank", rel:"noopener"},"Event info ↗") : null,
-        e.recurring ? h("button",{class:"btn sm", type:"button", onclick:()=>openOccurrence(e)},"Edit this month") : h("button",{class:"btn sm", type:"button", onclick:()=>openEvent(e.id)},"Edit event"),
-        e.recurring ? h("button",{class:"btn sm ghost", type:"button", onclick:()=>openSeries(e.seriesId)}, `${seriesById(e.seriesId)?.name || ""} defaults`) : null,
-        e.brand==="FIESTA" && !e.cancelled && canContent() ? h("button",{class:"btn primary sm", type:"button", onclick:()=>openPlanner(e.id)},"Plan this month's content") : null),
-      e.cancelled ? h("div",{class:"notice"},"Marked as no meetup this month.") : null),
-    h("section",{},
-      h("div",{class:"spread", style:"margin-bottom:8px"}, h("div",{class:"group-h", style:"padding:0"}, h("h3",{},"Role chart"), h("span",{class:"count"}, (e.roles||[]).length),
-          e.recurring ? h("span",{class:"small muted"},"· same every month") : null),
-        h("button",{class:"btn sm", type:"button", onclick:()=>openRoles(e)}, (e.roles||[]).length ? "Edit roles" : "Set up roles")),
-      h("div",{class:"panel org"},
-        h("div",{class:"org-root"}, e.name, h("div",{class:"small", style:"opacity:.75; font-family:var(--f-body); font-weight:500"}, e.date ? fmtShort(e.date) : "")),
-        byArea.length ? h("div",{class:"org-areas"}, ...byArea.map(([a, list]) => h("div",{class:"org-col"}, h("div",{class:"org-area"}, a),
-          ...list.map(r => { const p = r.personId ? teamById(r.personId) : null; const nm = p ? p.name : r.name;
-            return h("div",{class:"role-card"}, h("span",{class:"rt"}, r.title),
-              nm ? h("span",{class:"rp"}, avatar(p || {name:nm}, true), nm) : h("span",{class:"pill warn", style:"align-self:flex-start"},"Unassigned")); }))))
-        : h("div",{class:"empty", style:"text-align:center"}, "No roles yet. ", h("button",{class:"btn sm", type:"button", onclick:()=>useTemplate(e)},"Start from the FIESTA template")))),
-    deliverablesSection(e),
-    h("section",{},
-      h("div",{class:"spread", style:"margin-bottom:8px"}, h("div",{class:"group-h", style:"padding:0"}, h("h3",{},"Pitchers & founders"), h("span",{class:"count"}, S.founders.length)),
-        h("div",{class:"row"}, h("button",{class:"btn sm", type:"button", onclick:()=>openFounder(e, null)},"+ Add one"))),
-      h("div",{class:"panel list"}, S.founders.length ? S.founders.map(f => h("button",{class:"item", type:"button", onclick:()=>openFounder(e, f.id)},
-        avatar({name:f.name}),
-        h("div",{style:"min-width:0"}, h("div",{class:"t"}, f.name, f.company ? h("span",{class:"muted"}, " · "+f.company) : null),
-          f.oneLiner ? h("div",{class:"meta"}, f.oneLiner) : null,
-          h("div",{class:"links", style:"margin-top:4px"}, ...[["LinkedIn",f.linkedin],["Instagram",f.instagram],["Website",f.website],["Headshot",f.photoUrl]].filter(([,u])=>safeUrl(u)).map(([l,u]) => h("a",{href:u, target:"_blank", rel:"noopener", onclick:ev=>ev.stopPropagation()}, l+" ↗")))),
-        h("div",{class:"when"}, h("span",{class:"pill"+(f.contentStatus==="Posted"?" ok":f.contentStatus&&f.contentStatus!=="Not started"?" warn":"")}, f.contentStatus||"Not started"))))
-        : h("div",{class:"empty"},"No pitchers yet. Whoever has the list (the organizer, not the media team) can add each founder with “+ Add one.”")))
-  );
-}
+
 async function saveRoles(e, roles){
   if (e.recurring) await db.collection("series").doc(e.seriesId).update({roles});
   else await db.collection("events").doc(e.id).update({roles});
@@ -1071,89 +1148,6 @@ function openTask(id){
       }},"Save")), status
   ]);
 }
-function viewMeetings(){
-  const ms = S.meetings.slice().sort((a,b)=>(b.date||b.createdAt||"").localeCompare(a.date||a.createdAt||""));
-  const notesUrl = safeUrl(S.links.meetingNotes);
-  return [
-    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"},"Meetings"), h("h2",{},"Notes in, to-dos out")),
-      h("div",{class:"row"}, notesUrl ? h("a",{class:"btn", href:notesUrl, target:"_blank", rel:"noopener"},"Meeting notes folder ↗") : null,
-        h("button",{class:"btn primary", type:"button", onclick:openMeetingIntake},"+ Add meeting notes"))),
-    h("p",{class:"small muted", style:"margin:-12px 0 0"},"After each meeting, add the summary and who agreed to do what. Each person sees their tasks on My tasks."),
-    h("div",{class:"panel list"}, ms.length ? ms.map(m => {
-      const ts = S.tasks.filter(t=>t.meetingId===m.id), openN = ts.filter(t=>!t.done).length;
-      return h("button",{class:"item", type:"button", onclick:()=>openMeeting(m.id)},
-        h("span",{class:"mono muted"}, m.date ? fmtShort(m.date) : "No date"),
-        h("div",{style:"min-width:0"}, h("div",{class:"t"}, m.title), h("div",{class:"meta"}, [...new Set(ts.map(t=>nameOf(t.ownerId)))].join(", ") || "No tasks")),
-        h("div",{class:"when"}, h("span",{class:"pill"+(openN?" warn":" ok")}, openN ? `${openN} open` : ts.length ? "All done" : "—")));
-    }) : h("div",{class:"empty"},"No meetings yet. Add the notes from your last meeting to start."))
-  ];
-}
-function openMeeting(id){
-  const m = meetingById(id); if (!m) return;
-  const ts = S.tasks.filter(t=>t.meetingId===id);
-  const owners = [...new Set(ts.map(t=>t.ownerId))];
-  const url = safeUrl(m.driveUrl);
-  const status = h("div",{class:"cmp-status"});
-  openDrawer(m.title, [
-    h("div",{class:"row"}, m.date ? h("span",{class:"mono muted"}, fmt(m.date)) : null, url ? h("a",{class:"btn sm", href:url, target:"_blank", rel:"noopener"},"Notes in Drive ↗") : null),
-    m.summary ? h("div",{class:"facts"}, h("div",{class:"wide"}, h("dt",{},"Summary"), h("dd",{}, h("ul",{class:"duties", style:"margin-top:4px"}, ...lines(m.summary).map(l=>h("li",{}, l.replace(/^[-•]\s*/,""))))))) : null,
-    ...owners.map(o => h("section",{}, h("div",{class:"group-h"}, h("h3",{}, nameOf(o))), h("div",{class:"panel list"}, ts.filter(t=>t.ownerId===o).sort(byDue).map(t=>taskRow(t))))),
-    m.notes ? h("details",{}, h("summary",{class:"small", style:"cursor:pointer; font-weight:700"},"Original notes"), h("div",{class:"small", style:"white-space:pre-wrap; margin-top:8px"}, m.notes)) : null,
-    h("div",{class:"d-actions"}, deleteButton(async()=>{ for (const t of ts) await db.collection("tasks").doc(t.id).delete(); await db.collection("meetings").doc(id).delete(); }, status),
-      h("button",{class:"btn", type:"button", onclick:()=>openTask(null)},"+ Add a task")), status
-  ]);
-}
-function openMeetingIntake(){
-  const title = h("input",{type:"text", id:"mt-title", placeholder:"FIESTA media team meeting"});
-  const date = h("input",{type:"date", id:"mt-date"}); date.value = today();
-  const url = h("input",{type:"url", id:"mt-url", placeholder:"Link to the notes or recording in Drive (optional)"});
-  const summary = h("textarea",{id:"mt-summary", rows:"5", placeholder:"One decision or topic per line"});
-  const rows = h("div",{class:"role-rows"});
-  const addRow = () => {
-    const tx = h("input",{type:"text", "aria-label":"Task", placeholder:"Start with a verb: Send, Draft, Upload…"});
-    const own = h("select",{"aria-label":"Who"}, h("option",{value:""},"Who?"), ...S.team.map(t=>h("option",{value:t.id}, t.name)));
-    const du = h("input",{type:"date", "aria-label":"Due"});
-    const row = h("div",{class:"pv task-edit"}, h("div",{class:"task-grid"}, tx, own, du),
-      h("button",{class:"btn ghost sm", type:"button", "aria-label":"Remove task", onclick:()=>row.remove()},"Remove"));
-    row._get = () => ({text:tx.value.trim(), ownerId:own.value, due:du.value});
-    rows.append(row);
-  };
-  addRow(); addRow(); addRow();
-  const mail = h("input",{type:"checkbox", id:"mt-mail"});
-  const status = h("div",{class:"cmp-status", "aria-live":"polite"});
-  const saveBtn = h("button",{class:"btn primary", type:"button"},"Save meeting & tasks");
-  saveBtn.onclick = async () => {
-    const picks = [...rows.children].map(r=>r._get()).filter(x=>x.text);
-    if (picks.some(x=>!x.ownerId)){ status.textContent = "Pick who each task is for."; return; }
-    saveBtn.disabled = true;
-    try{
-      const name = title.value.trim() || "Team meeting";
-      const ref = db.collection("meetings").doc();
-      await ref.set({title:name, date:date.value, driveUrl:url.value.trim(), summary:summary.value.trim(), notes:"", createdBy:S.meId||"", createdAt:new Date().toISOString()});
-      for (const x of picks) await db.collection("tasks").add({...x, done:false, meetingId:ref.id, createdBy:S.meId||"", createdAt:new Date().toISOString()});
-      let msg = "";
-      const others = [...new Set(picks.map(x=>x.ownerId))].filter(o=>o!==S.meId);
-      if (mail.checked && others.length){
-        const r = await sendEmail(others, `To-dos from ${name}`, `From ${name}${date.value ? " ("+fmt(date.value)+")" : ""}:\n\n` +
-          others.map(o => `${nameOf(o)}:\n` + picks.filter(x=>x.ownerId===o).map(x=>`- ${x.text}${x.due ? " (due "+fmtShort(x.due)+")" : ""}`).join("\n")).join("\n\n") + `\n\nCheck them off on My tasks:\n${HUB_URL}`);
-        msg = " " + r.msg;
-      }
-      closeDrawer(); toast(`Saved ${picks.length} tasks.` + msg); setView("meetings");
-    }catch(e){ status.textContent = dbErr(e); saveBtn.disabled = false; }
-  };
-  openDrawer("Add meeting notes", [
-    h("div",{class:"fields"},
-      h("div",{class:"field full"}, h("label",{for:"mt-title"},"Meeting"), title),
-      h("div",{class:"field"}, h("label",{for:"mt-date"},"Date"), date),
-      h("div",{class:"field"}, h("label",{for:"mt-url"},"Drive link"), url),
-      h("div",{class:"field full"}, h("label",{for:"mt-summary"},"Summary"), summary)),
-    h("div",{class:"eyebrow"},"Tasks"), rows,
-    h("button",{class:"btn sm", type:"button", style:"align-self:flex-start", onclick:addRow},"+ Add task"),
-    h("label",{for:"mt-mail", class:"small", style:"display:flex; gap:6px; align-items:center"}, mail, "Open an email to everyone with their tasks"),
-    h("div",{class:"d-actions"}, status, saveBtn)
-  ]);
-}
-
 /* ---------- access (admins) ---------- */
 function viewAccess(){
   if (S.access !== "admin") return [h("div",{class:"panel empty"},"Only admins can manage access.")];
