@@ -141,3 +141,5 @@ select,input[type=text],input[type=url],input[type=email],input[type=date],input
 @media (max-width:900px){ .kpis{grid-template-columns:1fr} .exp{grid-template-columns:1fr} }
 
 .spread .row select{width:auto; min-width:170px}
+
+.owner-fixed{padding:9px 12px; border-radius:10px; background:var(--sunken); font-weight:600; font-size:14px}

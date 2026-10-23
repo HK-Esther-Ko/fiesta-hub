@@ -478,7 +478,7 @@ function myMentions(){ return S.meId ? S.messages.filter(m => (m.mentions||[]).i
 function notifications(){
   if (!S.meId) return [];
   const out = [];
-  const mine = S.content.filter(c => (c.ownerIds||[]).includes(S.meId) && !DONE.has(c.status));
+  const mine = S.content.filter(c => itemOwners(c).includes(S.meId) && !DONE.has(c.status));
   for (const c of mine.filter(c => c.deadline && daysUntil(c.deadline) <= 2)){
     const d = daysUntil(c.deadline);
     out.push({sticky:true, tone: d<0 ? "bad" : "warn", label: d<0 ? `${-d}d overdue` : d===0 ? "Due today" : `Due ${fmtShort(c.deadline)}`, text:c.title, go:()=>openItem(c.id)});
@@ -564,7 +564,7 @@ function viewCalendar(){
         h("button",{class:"btn sm", type:"button", "aria-label":"Previous month", onclick:()=>{S.month = new Date(y, mo-1, 1); renderMain();}},"←"),
         h("button",{class:"btn sm", type:"button", onclick:()=>{S.month = firstOfMonth(new Date()); renderMain();}},"Today"),
         h("button",{class:"btn sm", type:"button", "aria-label":"Next month", onclick:()=>{S.month = new Date(y, mo+1, 1); renderMain();}},"→")),
-      canContent() ? h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:()=>openPlanner(null)},"Plan a month from FIESTA"),
+      canContent() ? h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:()=>openPlanner(null)},"Plan a month: FIESTA & FoundHERs"),
         h("button",{class:"btn primary", type:"button", onclick:()=>openItem(null)},"+ New item"))
         : h("span",{class:"small muted"},"View only. Content managers and admins edit the calendar.")),
     h("div",{class:"spread", style:"align-items:center"}, legend(),
@@ -578,7 +578,7 @@ function viewCalendar(){
 }
 
 function itemRow(it){
-  const owners = (it.ownerIds||[]).map(nameOf).join(", ");
+  const owners = itemOwners(it).map(nameOf).join(", ");
   return h("button",{class:"item", type:"button", onclick:()=>openItem(it.id)},
     brandChip(it.brand),
     h("div",{style:"min-width:0"}, h("div",{class:"t"}, it.title), h("div",{class:"meta"}, [it.type, it.status, owners].filter(Boolean).join(" · "))),
@@ -1214,7 +1214,7 @@ function viewMyTasks(){
   const mine = S.tasks.filter(t=>t.ownerId===me.id);
   const open = mine.filter(t=>!t.done).sort(byDue);
   const done = mine.filter(t=>t.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||"")).slice(0,5);
-  const myContent = S.content.filter(c=>(c.ownerIds||[]).includes(me.id) && !DONE.has(c.status));
+  const myContent = S.content.filter(c=>itemOwners(c).includes(me.id) && !DONE.has(c.status));
   const dueSoon = myContent.filter(c=>c.deadline && daysUntil(c.deadline)<=7).sort((a,b)=>a.deadline.localeCompare(b.deadline));
   const review = myContent.filter(c=>c.needsReview);
   const roles = eventRolesFor(me.id);
@@ -1338,52 +1338,79 @@ function openImport(){
 }
 
 /* ---------- monthly planner ---------- */
-const PLAN_GROUPS = [
-  ["spotlight","Founder Spotlights","Mon / Wed / Fri · 12 PM · Carousel, one per pitcher"],
-  ["interview","Interview reels","Tue / Thu · 6 PM · Reel, one per pitcher"],
-  ["wins","Founder WINs","Every Tuesday · 3 PM · Carousel"],
-  ["newsletter","FIESTA FOCUS newsletter","Every other Tuesday · 12 PM · Story"],
-  ["promo","Recap & promotion","Recap the Saturday after; poster, reminder and final reminder 12, 5 and 2 days before the next meetup"]
+// owners are fixed by content type: newsletter → Cherie + Mindy, recap → Gaia, everything else → Esther
+const OWNER_RULES = [
+  ["Newsletter posts", t => t === "Newsletter", ["cherie","mindy"]],
+  ["Recap reels", t => t === "Event recap", ["gaia"]],
+  ["Everything else", () => true, ["esther"]]
 ];
-function buildPlan({eventDate, n, names, start, end, nextEvent, lead}){
+function ownersForType(type){
+  const rule = OWNER_RULES.find(([, test]) => test(type));
+  return rule[2].filter(id => teamById(id));
+}
+const itemOwners = it => ownersForType(it.type);
+const PLAN_GROUPS = {
+  spotlight:"FIESTA · Founder Spotlights", interview:"FIESTA · Interview reels", wins:"FIESTA · Founder WINs",
+  newsletter:"FIESTA FOCUS newsletter", recap:"Recap reel", promo:"FIESTA · Promotion",
+  fhInterview:"FoundHERs · Interview reels", fhPromo:"FoundHERs · Promotion", fhNewsletter:"HERald newsletter", fhCarousel:"FoundHERs · Gathering carousels"
+};
+function buildPlan({eventDate, n, names, start, end, nextEvent, lead, fhDate, fhN}){
   const out = [];
-  const add = (group, d, time, title, type, format) => out.push({group, publishDate:ymd(d), time, title, type, format, brand:"FIESTA", deadline:ymd(addDays(d, -lead))});
+  const add = (group, brand, d, time, title, type, format) => out.push({group, brand, publishDate:ymd(d), time, title, type, format, deadline:ymd(addDays(d, -lead))});
   const s = parse(start), e = parse(end);
   const range = (limit) => { const a = []; for (let d = s; d <= limit; d = addDays(d,1)) a.push(d); return a; };
   const win = range(e), long = range(addDays(s, 120));
   const tag = k => names[k-1] ? `: ${names[k-1]}` : "";
+  // FIESTA: spotlights M/W/F and interview reels Tu/Th, one per pitcher
   let k = 0;
-  for (const d of long){ if (k>=n) break; if ([1,3,5].includes(d.getDay())){ k++; add("spotlight", d, "12 PM", `Founder Spotlight #${k}${tag(k)}`, "Founder Spotlight", "Carousel"); } }
+  for (const d of long){ if (k>=n) break; if ([1,3,5].includes(d.getDay())){ k++; add("spotlight","FIESTA", d, "12 PM", `Founder Spotlight #${k}${tag(k)}`, "Founder Spotlight", "Carousel"); } }
   k = 0;
-  for (const d of long){ if (k>=n) break; if ([2,4].includes(d.getDay())){ k++; add("interview", d, "6 PM", `Founder Interview #${k}${tag(k)}`, "Interview reel", "Reel"); } }
+  for (const d of long){ if (k>=n) break; if ([2,4].includes(d.getDay())){ k++; add("interview","FIESTA", d, "6 PM", `Founder Interview #${k}${tag(k)}`, "Interview reel", "Reel"); } }
   const sat = win.find(d=>d.getDay()===6);
-  if (sat) add("promo", sat, "11 AM", `${monthName(eventDate)} Meetup Recap`, "Event recap", "Reel");
+  if (sat) add("recap","FIESTA", sat, "11 AM", `${monthName(eventDate)} Meetup Recap`, "Event recap", "Reel");
   let w = 0, t = 0;
   for (const d of win) if (d.getDay()===2){
-    w++; add("wins", d, "3 PM", `Founder WINs #${w}`, "Founder WINs", "Carousel");
-    if (t++ % 2 === 0) add("newsletter", d, "12 PM", "FIESTA FOCUS Newsletter", "Newsletter", "Story");
+    w++; add("wins","FIESTA", d, "3 PM", `Founder WINs #${w}`, "Founder WINs", "Carousel");
+    if (t++ % 2 === 0) add("newsletter","FIESTA", d, "12 PM", "FIESTA FOCUS Newsletter", "Newsletter", "Story");
   }
   if (nextEvent){
     const ne = parse(nextEvent), mn = monthName(nextEvent);
     for (const [o, ti, fm] of [[-12, `${mn} Meetup Promotion`, "Poster"], [-5, `${mn} Meetup Reminder`, "Story"], [-2, "Final Meetup Reminder", "Story"]]){
-      const d = addDays(ne, o); if (d >= s) add("promo", d, "6 PM", ti, "Promotion", fm);
+      const d = addDays(ne, o); if (d >= s) add("promo","FIESTA", d, "6 PM", ti, "Promotion", fm);
     }
+  }
+  // FoundHERs: interview reels on Fridays, then the gathering's promo, recap, newsletter and carousels
+  k = 0;
+  for (const d of long){ if (k>=fhN) break; if (d.getDay()===5){ k++; add("fhInterview","FoundHERs", d, "6 PM", `FoundHERs Founder Interview #${k}`, "Interview reel", "Reel"); } }
+  if (fhDate){
+    const G = parse(fhDate), mn = monthName(fhDate);
+    const fh = (o, group, time, title, type, format) => { const d = addDays(G, o); if (d >= s) add(group, "FoundHERs", d, time, title, type, format); };
+    fh(-6, "fhPromo", "6 PM", `${mn} Gathering Promotion`, "Promotion", "Poster");
+    fh(0, "recap", "Evening", `${mn} Gathering Recap`, "Event recap", "Reel");
+    fh(3, "fhNewsletter", "12 PM", "HERald Newsletter Announcement", "Newsletter", "Post");
+    fh(6, "fhCarousel", "6 PM", "Gathering Carousel #1", "Gathering carousel", "Carousel");
+    fh(13, "fhCarousel", "6 PM", "Gathering Carousel #2", "Gathering carousel", "Carousel");
   }
   return out.sort((a,b)=>a.publishDate.localeCompare(b.publishDate) || hourOf(a.time)-hourOf(b.time));
 }
+function ownerRulesList(){
+  return h("ul",{class:"duties", style:"margin-top:4px"}, ...OWNER_RULES.map(([label,, ids]) =>
+    h("li",{}, h("b",{}, label), " → ", ids.map(id => teamById(id)?.name || id).join(", "))));
+}
 function openPlanner(eventId){
-  const fiestas = allEvents().filter(e=>e.brand==="FIESTA" && e.date && !e.cancelled).sort((a,b)=>a.date.localeCompare(b.date));
-  if (!fiestas.length){ toast("Add a FIESTA event with a date on the Events page first."); setView("events"); return; }
+  const evs = allEvents().filter(e=>e.date && !e.cancelled);
+  const fiestas = evs.filter(e=>e.brand==="FIESTA").sort((a,b)=>a.date.localeCompare(b.date));
+  if (!fiestas.length){ toast("Set up the FIESTA meetup schedule on the Event org chart page first."); setView("events"); return; }
+  const fhs = evs.filter(e=>e.brand==="FoundHERs" && e.recurring).sort((a,b)=>a.date.localeCompare(b.date));
   const pick = fiestas.find(e=>e.id===eventId) || fiestas.filter(e=>e.date<=today()).pop() || fiestas[0];
   const evSel = h("select",{id:"pl-event"}, ...fiestas.map(e=>h("option",{value:e.id}, `${e.name} (${fmtShort(e.date)})`))); evSel.value = pick.id;
   const nIn = h("input",{type:"text", inputmode:"numeric", id:"pl-n"});
   const nextIn = h("input",{type:"date", id:"pl-next"});
+  const fhIn = h("input",{type:"date", id:"pl-fh"});
+  const fhNIn = h("input",{type:"text", inputmode:"numeric", id:"pl-fhn"}); fhNIn.value = "2";
   const startIn = h("input",{type:"date", id:"pl-start"});
   const endIn = h("input",{type:"date", id:"pl-end"});
   const leadIn = h("input",{type:"text", inputmode:"numeric", id:"pl-lead"}); leadIn.value = "2";
-  const defOwner = teamById("esther") ? "esther" : (S.meId || "");
-  const ownerSel = {};
-  for (const [g] of PLAN_GROUPS){ ownerSel[g] = h("select",{id:"pl-own-"+g}, h("option",{value:""},"No owner"), ...S.team.map(t=>h("option",{value:t.id},t.name))); ownerSel[g].value = defOwner; }
   const status = h("div",{class:"cmp-status", "aria-live":"polite"});
   const out = h("div",{class:"preview"});
   let names = [];
@@ -1393,50 +1420,50 @@ function openPlanner(eventId){
     nextIn.value = next ? next.date : "";
     startIn.value = ymd(addDays(parse(ev.date), 1));
     endIn.value = next ? ymd(addDays(parse(next.date), -1)) : ymd(addDays(parse(ev.date), 28));
+    const g = fhs.find(e => e.date >= startIn.value);
+    fhIn.value = g ? g.date : "";
     names = [];
-    if (db){ try{ const s = await db.collection(`events/${ev.id}/founders`).get(); names = s.docs.map(d=>d.data()).sort((a,b)=>(a.order??999)-(b.order??999)).map(f=>f.name).filter(Boolean); }catch(e){} }
+    try{ const s = await db.collection(`events/${ev.id}/founders`).get(); names = s.docs.map(d=>d.data()).sort((a,b)=>(a.order??999)-(b.order??999)).map(f=>f.name).filter(Boolean); }catch(e){}
     nIn.value = names.length ? String(names.length) : (nIn.value || "");
-    status.textContent = names.length ? `${names.length} pitchers on this event's list. Their names go into the post titles.` : "No pitcher list for this event yet. Enter how many founders pitched.";
+    status.textContent = names.length ? `${names.length} pitchers on this meetup's list. Their names go into the post titles.` : "No pitcher list for this meetup yet. Enter how many founders pitched.";
     out.replaceChildren();
   }
   evSel.onchange = loadEvent;
   const preview = h("button",{class:"btn primary", type:"button"},"Preview plan");
   preview.onclick = () => {
     const ev = fiestas.find(e=>e.id===evSel.value);
-    const n = parseInt(nIn.value, 10), lead = parseInt(leadIn.value, 10);
-    if (!(n>=0)){ status.textContent = "Enter how many founders pitched (a number)."; return; }
+    const n = parseInt(nIn.value, 10), lead = parseInt(leadIn.value, 10), fhN = parseInt(fhNIn.value || "0", 10);
+    if (!(n>=0)){ status.textContent = "Enter how many founders pitched at FIESTA (a number)."; return; }
+    if (!(fhN>=0)){ status.textContent = "Enter how many FoundHERs interview reels (a number)."; return; }
     if (!(lead>=0)){ status.textContent = "Enter the lead time in days (a number)."; return; }
     if (!startIn.value || !endIn.value || endIn.value < startIn.value){ status.textContent = "Check the plan dates: the end has to be after the start."; return; }
-    const plan = buildPlan({eventDate:ev.date, n, names, start:startIn.value, end:endIn.value, nextEvent:nextIn.value, lead});
+    const plan = buildPlan({eventDate:ev.date, n, names, start:startIn.value, end:endIn.value, nextEvent:nextIn.value, lead, fhDate:fhIn.value, fhN});
     const exists = new Set(S.content.map(c=>c.publishDate+"|"+(c.title||"").toLowerCase()));
     const boxes = plan.map(p => { const cb = h("input",{type:"checkbox", "aria-label":"Include "+p.title}); cb.checked = !exists.has(p.publishDate+"|"+p.title.toLowerCase()); return cb; });
     const create = h("button",{class:"btn primary", type:"button"}, "Create posts & ask owners to review");
     create.onclick = async () => {
-      if (!db) return toast("The hub's shared data isn't available in this view.");
-      if (!S.meId){ toast("Choose your name at the top first."); return; }
       const picks = plan.filter((_,i)=>boxes[i].checked);
       if (!picks.length){ status.textContent = "Nothing selected."; return; }
       create.disabled = true; status.textContent = `Creating ${picks.length} posts…`;
       const now = new Date().toISOString();
       try{
         for (const p of picks){
-          const own = ownerSel[p.group].value;
           const {group, ...rest} = p;
-          await db.collection("content").add({...rest, status:"Drafting", ownerIds: own ? [own] : [], needsReview:true, planEvent:ev.id, notes:"", driveUrl:"", finalUrl:"", createdAt:now, updatedAt:now});
+          await db.collection("content").add({...rest, status:"Drafting", ownerIds: ownersForType(p.type), needsReview:true, planEvent:ev.id, notes:"", driveUrl:"", finalUrl:"", createdAt:now, updatedAt:now});
         }
       }catch(e){ status.textContent = dbErr(e); create.disabled = false; return; }
       const byOwner = {};
-      for (const p of picks){ const o = ownerSel[p.group].value; if (o) (byOwner[o] ||= []).push(p); }
+      for (const p of picks) for (const o of ownersForType(p.type)) (byOwner[o] ||= []).push(p);
       const others = Object.keys(byOwner).filter(o=>o!==S.meId);
-      const lines = list => list.map(p => `- ${fmt(p.publishDate)} · ${p.time} · ${p.title} (${p.format}), due ${fmtShort(p.deadline)}`).join("\n");
-      if (Object.keys(byOwner).length){
-        const text = Object.keys(byOwner).map(o=>"@"+nameOf(o)).join(" ") + ` I drafted ${picks.length} FIESTA posts from ${ev.name}. Please check yours on the calendar (amber outline), fix anything that's off, and click “Looks good.”`;
+      const lines = list => list.map(p => `- ${fmt(p.publishDate)} · ${p.time} · ${p.brand} · ${p.title} (${p.format}), due ${fmtShort(p.deadline)}`).join("\n");
+      if (S.meId && Object.keys(byOwner).length){
+        const text = Object.keys(byOwner).map(o=>"@"+nameOf(o)).join(" ") + ` I drafted ${picks.length} FIESTA & FoundHERs posts for next month. Please check yours on the calendar (amber outline), fix anything that's off, and click “Looks good.”`;
         try{ await db.collection("messages").add({thread:"general", text, authorId:S.meId, mentions:Object.keys(byOwner), createdAt:new Date().toISOString()}); }catch(e){}
       }
       const results = [];
       if (others.length){
-        const r = await sendEmail(others, `Please review: FIESTA posts from ${ev.name}`,
-          `Hi all,\n\n${nameOf(S.meId)} drafted next month's FIESTA content from ${ev.name}.\n\n` + others.map(o => `${nameOf(o)}:\n${lines(byOwner[o])}`).join("\n\n") +
+        const r = await sendEmail(others, "Please review: next month's FIESTA & FoundHERs posts",
+          `Hi all,\n\n${nameOf(S.meId)} drafted next month's content.\n\n` + others.map(o => `${nameOf(o)}:\n${lines(byOwner[o])}`).join("\n\n") +
           `\n\nOpen the hub, click each post to check the date, deadline and brief, fix anything that's off, then click "Looks good."\n${HUB_URL}`);
         results.push(r.msg);
       }
@@ -1444,28 +1471,34 @@ function openPlanner(eventId){
       toast(`Created ${picks.length} posts.` + (results.length ? " " + results.join(" ") : " They're marked for review on the calendar."));
       S.month = firstOfMonth(parse(picks[0].publishDate)); setView("calendar");
     };
-    const groupName = Object.fromEntries(PLAN_GROUPS.map(([g,l])=>[g,l]));
     out.replaceChildren(
       h("div",{class:"small"}, h("b",{}, `${plan.length} posts`), ` from ${fmtShort(startIn.value)}. Already-planned posts are unchecked.`),
       h("div",{class:"plan-scroll"}, h("table",{class:"plan-table"},
         h("thead",{}, h("tr",{}, h("th",{},""), h("th",{},"Goes live"), h("th",{},"Post"), h("th",{},"Due"), h("th",{},"Owner"))),
         h("tbody",{}, ...plan.map((p,i) => h("tr",{}, h("td",{}, boxes[i]), h("td",{class:"mono"}, `${fmtShort(p.publishDate)} ${p.time}`),
-          h("td",{}, p.title, h("div",{class:"small muted"}, `${p.format} · ${groupName[p.group]}`)), h("td",{class:"mono"}, fmtShort(p.deadline)),
-          h("td",{}, ownerSel[p.group].value ? nameOf(ownerSel[p.group].value) : "—")))))),
-      h("div",{class:"d-actions"}, h("span",{class:"small muted"},"Owners get one email each with their list, plus an @mention."), create));
+          h("td",{}, h("div",{class:"row", style:"gap:6px"}, brandChip(p.brand), p.title), h("div",{class:"small muted"}, `${p.format} · ${PLAN_GROUPS[p.group]}`)),
+          h("td",{class:"mono"}, fmtShort(p.deadline)),
+          h("td",{}, ownersForType(p.type).map(nameOf).join(", ") || "—")))))),
+      h("div",{class:"d-actions"}, h("span",{class:"small muted"},"Owners get an @mention, plus one email with their list."), create));
     status.textContent = "";
   };
-  openDrawer("Plan a month from FIESTA", [
-    h("p",{class:"small muted", style:"margin:0"},"Builds the month from your default schedule. Spotlights and interview reels scale with how many founders pitched. Every post comes in as a draft marked “Needs review,” and each owner gets an email to check theirs."),
+  openDrawer("Plan a month: FIESTA & FoundHERs", [
+    h("p",{class:"small muted", style:"margin:0"},"Builds the month from your default schedule. FIESTA spotlights and interview reels scale with how many founders pitched. Every post comes in as a draft marked “Needs review.”"),
+    h("div",{class:"eyebrow"},"FIESTA"),
     h("div",{class:"fields"},
-      h("div",{class:"field full"}, h("label",{for:"pl-event"},"FIESTA event"), evSel),
+      h("div",{class:"field full"}, h("label",{for:"pl-event"},"Meetup the content is about"), evSel),
       h("div",{class:"field"}, h("label",{for:"pl-n"},"Founders who pitched"), nIn),
-      h("div",{class:"field"}, h("label",{for:"pl-next"},"Next meetup (for promotion)"), nextIn),
+      h("div",{class:"field"}, h("label",{for:"pl-next"},"Next meetup (for promotion)"), nextIn)),
+    h("div",{class:"eyebrow"},"FoundHERs"),
+    h("div",{class:"fields"},
+      h("div",{class:"field"}, h("label",{for:"pl-fh"},"Gathering date"), fhIn),
+      h("div",{class:"field"}, h("label",{for:"pl-fhn"},"Interview reels"), fhNIn)),
+    h("div",{class:"eyebrow"},"Dates"),
+    h("div",{class:"fields"},
       h("div",{class:"field"}, h("label",{for:"pl-start"},"Plan from"), startIn),
       h("div",{class:"field"}, h("label",{for:"pl-end"},"Plan until"), endIn),
       h("div",{class:"field"}, h("label",{for:"pl-lead"},"Deadline: days before posting"), leadIn)),
-    h("div",{class:"eyebrow"},"Default schedule and owners"),
-    h("div",{class:"fields"}, ...PLAN_GROUPS.map(([g,l,d]) => h("div",{class:"field full"}, h("label",{for:"pl-own-"+g}, l), h("span",{class:"small muted"}, d), ownerSel[g]))),
+    h("div",{class:"facts"}, h("div",{class:"wide"}, h("dt",{},"Owners (fixed by content type)"), h("dd",{}, ownerRulesList()))),
     preview, status, out
   ]);
   loadEvent();
@@ -1494,7 +1527,7 @@ function openItemReadOnly(it){
       h("div",{}, h("dt",{},"Goes live"), h("dd",{}, it.publishDate ? h("span",{class:"mono"}, fmt(it.publishDate) + (it.time ? " · "+it.time : "")) : "Not scheduled")),
       h("div",{class:"wide"}, h("dt",{},"Content"), h("dd",{style:"white-space:pre-wrap"}, it.notes || "No brief yet.")),
       h("div",{class:"wide"}, h("dt",{},"Finished file"), h("dd",{}, final ? h("a",{href:final, target:"_blank", rel:"noopener"},"Open finished file ↗") : "Not uploaded yet.")),
-      h("div",{class:"wide"}, h("dt",{},"Owner"), h("dd",{}, (it.ownerIds||[]).map(nameOf).join(", ") || "Nobody yet"))),
+      h("div",{class:"wide"}, h("dt",{},"Owner"), h("dd",{}, itemOwners(it).map(nameOf).join(", ") || "Nobody yet"))),
     drive ? h("a",{class:"btn", href:drive, target:"_blank", rel:"noopener", style:"align-self:flex-start"},"Working folder ↗") : null,
     h("p",{class:"small muted", style:"margin:0"},"Only content managers and admins can change calendar items. Leave a note below instead."),
     h("section",{class:"d-thread"}, h("div",{style:"padding:12px 14px 0"}, h("h3",{},"Discussion")), threadList(it.id), composer(it.id, () => it.title))
@@ -1520,11 +1553,14 @@ function openItem(id){
   };
   for (const k of Object.keys(f)) f[k].value = it[k] || "";
   if (!TYPES.includes(it.type) && it.type) f.type.append(h("option",{value:it.type}, it.type)), f.type.value = it.type;
-  const owners = ownerPicker("it", it.ownerIds||[]);
+  // owner follows the content type (see OWNER_RULES); shown, not picked
+  const ownerTxt = h("div",{class:"owner-fixed"});
+  const paintOwner = () => { ownerTxt.textContent = (ownersForType(f.type.value).map(nameOf).join(", ") || "—") + "  ·  set by content type"; };
+  f.type.addEventListener("change", paintOwner); paintOwner();
   const status = h("div",{class:"cmp-status", "aria-live":"polite"});
   const drive = safeUrl(it.driveUrl);
   const remind = h("button",{class:"btn", type:"button", onclick:async()=>{
-    const ids = (it.ownerIds||[]).filter(x=>x!==S.meId);
+    const ids = itemOwners(it).filter(x=>x!==S.meId);
     if (!ids.length){ status.textContent = "Add an owner (other than you) to send a reminder."; return; }
     if (!S.meId){ toast("Choose your name at the top first."); return; }
     remind.disabled = true; status.textContent = "Emailing…";
@@ -1549,7 +1585,7 @@ function openItem(id){
       h("div",{}, h("dt",{},"Goes live"), h("dd",{}, it.publishDate ? h("span",{class:"mono"}, fmt(it.publishDate) + (it.time ? " · "+it.time : "")) : "Not scheduled")),
       h("div",{class:"wide"}, h("dt",{},"Content"), h("dd",{style:"white-space:pre-wrap"}, it.notes || "No brief yet. Add what this post says below.")),
       h("div",{class:"wide"}, h("dt",{},"Finished file"), h("dd",{}, final ? h("a",{href:final, target:"_blank", rel:"noopener"},"Open finished file ↗") : "Not uploaded yet. Paste the link below when it's done.")),
-      h("div",{class:"wide"}, h("dt",{},"Owner"), h("dd",{}, (it.ownerIds||[]).map(nameOf).join(", ") || "Nobody yet"))) : null,
+      h("div",{class:"wide"}, h("dt",{},"Owner"), h("dd",{}, itemOwners(it).map(nameOf).join(", ") || "Nobody yet"))) : null,
     id ? h("div",{class:"row"},
       it.needsReview ? h("button",{class:"btn primary", type:"button", onclick:async()=>{
         if (!db) return;
@@ -1566,7 +1602,7 @@ function openItem(id){
       h("div",{class:"field"}, h("label",{for:"it-pub"},"Goes live (date)"), f.publishDate),
       h("div",{class:"field"}, h("label",{for:"it-time"},"Time"), f.time),
       h("div",{class:"field"}, h("label",{for:"it-due"},"Deadline"), f.deadline),
-      h("div",{class:"field full"}, h("span",{class:"lbl"},"Owners"), owners.el),
+      h("div",{class:"field full"}, h("span",{class:"lbl"},"Owner"), ownerTxt),
       h("div",{class:"field full"}, h("label",{for:"it-notes"},"Content brief & caption"), f.notes),
       h("div",{class:"field full"}, h("label",{for:"it-drive"},"Working folder (raw files, drafts)"), f.driveUrl),
       h("div",{class:"field full"}, h("label",{for:"it-final"},"Finished file location"), f.finalUrl)),
@@ -1577,7 +1613,7 @@ function openItem(id){
         const title = f.title.value.trim(); if (!title){ status.textContent = "Give it a title."; return; }
         const data = {title, brand:f.brand.value, type:f.type.value, status:f.status.value, publishDate:f.publishDate.value, deadline:f.deadline.value,
           driveUrl:f.driveUrl.value.trim(), finalUrl:f.finalUrl.value.trim(), format:f.format.value, time:f.time.value.trim(),
-          notes:f.notes.value.trim(), ownerIds:owners.get(), updatedAt:new Date().toISOString()};
+          notes:f.notes.value.trim(), ownerIds:ownersForType(f.type.value), updatedAt:new Date().toISOString()};
         try{
           if (id){ await db.collection("content").doc(id).update(data); toast("Saved."); closeDrawer(); }
           else { const ref = db.collection("content").doc(); await ref.set({...data, createdAt:data.updatedAt}); toast("Added to the calendar."); closeDrawer(); }
