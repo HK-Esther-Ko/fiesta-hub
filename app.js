@@ -48,7 +48,7 @@ const DRIVE_CARDS = [
   {tag:"Brand", title:"Brand kit", desc:"Logos, colors, fonts and templates.", keys:["brandKit"], color:"var(--regional)"},
   {tag:"Company", title:"Meetings", desc:"Meeting notes, recordings and company files. Upload them here after each meeting.", keys:["meetings"], color:"var(--news)"}
 ];
-const VIEWS = [["mytasks","My tasks"],["calendar","Calendar"],["analytics","Analytics"],["events","Event org chart"],["roles","Roles"],["chat","Team chat"],["drive","Drive"],["sops","SOPs"]];
+const VIEWS = [["mytasks","Home"],["calendar","Calendar"],["analytics","Analytics"],["events","Event org chart"],["roles","Roles"],["chat","Team chat"],["drive","Drive"],["sops","SOPs"]];
 const METRICS = [
   ["igFollowers","Instagram followers"],["igReach","Instagram accounts reached"],["igViews","Instagram views"],
   ["igInteractions","Instagram interactions"],["igShares","Instagram shares"],["liFollowers","LinkedIn followers"],
@@ -358,15 +358,42 @@ function autoMatch(){
 }
 
 /* ---------- header ---------- */
-function renderTabs(){
-  const nav = document.getElementById("tabs");
-  nav.replaceChildren(h("div",{class:"eyebrow"},"Menu"), ...VIEWS.concat(S.access==="admin" ? [["access","Access"]] : []).map(([k,l]) => h("button",{class:"tab", role:"tab", type:"button", "aria-selected": String(S.view===k), onclick:()=>{ if (k==="sops") S.sopOpen = ""; setView(k); }}, h("span",{class:"dot"}), l)));
+// line icons, 24px grid, drawn with currentColor
+const ICONS = {
+  mytasks:"M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
+  calendar:"M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+  analytics:"M3 3v18h18M7 15l4-4 3 3 6-6",
+  events:"M10 3h4v4h-4zM12 7v4M5 15v-4h14v4M3 15h4v5H3zM17 15h4v5h-4zM10 15h4v5h-4zM12 11v4",
+  roles:"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  chat:"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  drive:"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  sops:"M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5",
+  access:"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  logout:"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  bell:"M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"
+};
+function icon(name){
+  const s = document.createElement("span"); s.className = "ic"; s.setAttribute("aria-hidden","true");
+  s.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${ICONS[name]||""}"/></svg>`;
+  return s;
 }
-function setView(k){ S.view = k; save("hub.view", k); chatBuilt = false; renderTabs(); renderMain(); }
+document.querySelectorAll("[data-icon]").forEach(el => el.replaceWith(icon(el.dataset.icon)));
+function navItem([k,l]){
+  return h("button",{class:"nav-item", role:"tab", type:"button", "aria-selected": String(S.view===k), onclick:()=>{ if (k==="sops") S.sopOpen = ""; setView(k); }}, icon(k), l);
+}
+function renderTabs(){
+  document.getElementById("tabs").replaceChildren(...VIEWS.map(navItem));
+  document.getElementById("tabs-foot").replaceChildren(...(S.access==="admin" ? [navItem(["access","Access"])] : []));
+}
+function setView(k){ S.view = k; save("hub.view", k); chatBuilt = false; renderTabs(); renderMain(); document.querySelector(".content")?.scrollTo?.(0,0); window.scrollTo(0,0); }
 function renderHeader(){
   const n = notifications(), seen = myLastSeen();
   const count = n.filter(x => x.sticky || (x.at||"") > seen).length;
   const b = document.getElementById("bell-count"); b.textContent = count; b.hidden = !count;
+  const me = teamById(S.meId);
+  document.getElementById("tb-name").textContent = me ? me.name : (S.myEmail || "");
+  document.getElementById("tb-avatar").replaceChildren(avatar(me || {name:S.myEmail||"?"}));
+  document.getElementById("tb-date").textContent = new Date().toLocaleDateString("en-US",{weekday:"long", month:"long", day:"numeric"});
 }
 function myMentions(){ return S.meId ? S.messages.filter(m => (m.mentions||[]).includes(S.meId) && m.authorId !== S.meId) : []; }
 // one feed: what needs you now (sticky) + what happened (mentions, new tasks)
@@ -782,14 +809,14 @@ function seriesTagsFor(id){
 function personCard(t){
   const duties = lines(t.duties), tags = seriesTagsFor(t.id);
   return h("article",{class:"person"},
-    h("div",{class:"ph"}, t.photo ? h("img",{src:t.photo, alt:t.name}) : h("span",{class:"ph-ini", style:`background:hsl(${hue(t.name)} 48% 44%)`}, initials(t.name))),
-    h("div",{class:"person-body"},
-      h("div",{class:"p-title"}, t.role || "Title not set"),
+    h("div",{class:"person-top"},
+      h("div",{class:"ph"}, t.photo ? h("img",{src:t.photo, alt:t.name}) : h("span",{class:"ph-ini", style:`background:hsl(${hue(t.name)} 48% 44%)`}, initials(t.name))),
       h("h3",{class:"p-name"}, t.name, t.id===S.meId ? h("span",{class:"you"},"You") : null),
-      duties.length ? h("ul",{class:"p-duties"}, ...duties.map(d=>h("li",{},d))) : null,
-      tags.length ? h("div",{class:"p-tags"}, ...tags.map(x=>h("span",{class:"p-tag"}, x))) : null,
-      h("div",{class:"p-foot"}, t.email ? h("span",{class:"small muted", style:"word-break:break-all"}, t.email) : h("span",{class:"pill warn"},"No email yet"),
-        h("button",{class:"btn sm ghost", type:"button", onclick:()=>openMember(t.id)},"Edit"))));
+      h("div",{class:"p-title"}, t.role || "Title not set"),
+      t.email ? h("div",{class:"p-mail"}, t.email) : h("span",{class:"pill warn"},"No email yet")),
+    duties.length ? h("ul",{class:"p-duties"}, ...duties.map(d=>h("li",{},d))) : null,
+    tags.length ? h("div",{class:"p-tags"}, ...tags.map(x=>h("span",{class:"p-tag"}, x))) : null,
+    h("button",{class:"p-foot", type:"button", onclick:()=>openMember(t.id)},"Edit profile"));
 }
 function viewRoles(){
   const sorted = S.team.slice().sort((a,b)=>(a.order??99)-(b.order??99) || (a.name||"").localeCompare(b.name||""));
@@ -1099,10 +1126,13 @@ function taskRow(t, showOwner){
     h("div",{class:"when"}, t.due ? h("span",{class:"mono"}, fmtShort(t.due)) : null,
       t.done ? null : n==null ? h("span",{class:"pill"},"No date") : n<0 ? h("span",{class:"pill bad"}, `${-n}d late`) : n<=3 ? h("span",{class:"pill warn"}, n===0 ? "Today" : `${n}d left`) : null));
 }
+function card(title, action, ...body){
+  return h("section",{class:"card"}, h("div",{class:"card-h"}, h("h3",{}, title), action || null), ...body);
+}
 function viewMyTasks(){
   const me = teamById(S.meId);
-  if (!me) return [h("div",{}, h("div",{class:"eyebrow"},"My tasks"), h("h2",{},"Who are you?")),
-    h("div",{class:"panel empty"},"Choose your name in “You are” at the top. Or ask an admin to put your sign-in email on your Roles card, and the hub will know you automatically.")];
+  if (!me) return [h("div",{class:"hello"}, h("h1",{},"Welcome!"), h("p",{},"Your sign-in email isn't linked to a teammate yet.")),
+    h("div",{class:"panel empty"},"Ask an admin to add your email to your profile on the Roles page. After that, this page shows your tasks, deadlines and events.")];
   const mine = S.tasks.filter(t=>t.ownerId===me.id);
   const open = mine.filter(t=>!t.done).sort(byDue);
   const done = mine.filter(t=>t.done).sort((a,b)=>(b.doneAt||"").localeCompare(a.doneAt||"")).slice(0,5);
@@ -1111,21 +1141,39 @@ function viewMyTasks(){
   const review = myContent.filter(c=>c.needsReview);
   const roles = eventRolesFor(me.id);
   const tile = (n, label, tone) => h("div",{class:"panel stat"+(tone?" "+tone:"")}, h("div",{class:"stat-n"}, n), h("div",{class:"stat-l"}, label));
+  const link = (label, view) => h("button",{class:"link", type:"button", onclick:()=>setView(view)}, label);
+  const nextEvents = S.series.map(s => allEvents().filter(e=>e.seriesId===s.id && !e.cancelled && e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date))[0]).filter(Boolean).sort((a,b)=>a.date.localeCompare(b.date));
+  const k = S.kpis || [], last = k[k.length-1], prev = k[k.length-2];
+  const kd = last ? delta("igReach", last.igReach, prev?.igReach) : null;
+  const teamPeek = S.team.slice().sort((a,b)=>(a.order??99)-(b.order??99)).slice(0,6);
   return [
-    h("div",{class:"spread"}, h("div",{}, h("div",{class:"eyebrow"}, me.role || "My tasks"), h("h2",{}, `Hi ${me.name}, here's your list`)),
-      h("button",{class:"btn", type:"button", onclick:()=>openTask(null)},"+ Add a task")),
+    h("div",{class:"hello"}, h("h1",{}, `Hi ${me.name},`),
+      h("p",{}, open.length || dueSoon.length || review.length ? `You have ${open.length} open task${open.length===1?"":"s"}, ${dueSoon.length} post${dueSoon.length===1?"":"s"} due this week and ${review.length} to review.` : "You're all caught up. Nice work.")),
     h("div",{class:"stats"},
-      tile(open.length, "open tasks from meetings"),
-      tile(dueSoon.length, "posts due in the next 7 days", dueSoon.some(c=>daysUntil(c.deadline)<0) ? "bad" : ""),
-      tile(review.length, "drafted posts to review", review.length ? "warn" : "")),
-    h("section",{}, h("div",{class:"group-h"}, h("h3",{},"To do"), h("span",{class:"count"}, open.length)),
-      h("div",{class:"panel list"}, open.length ? open.map(t=>taskRow(t)) : h("div",{class:"empty"},"Nothing open. New tasks show up here after each meeting."))),
-    h("section",{}, h("div",{class:"group-h"}, h("h3",{},"Content due soon"), h("span",{class:"count"}, dueSoon.length)),
-      h("div",{class:"panel list"}, dueSoon.length ? dueSoon.map(itemRow) : h("div",{class:"empty"},"No content deadlines in the next 7 days."))),
-    review.length ? h("section",{}, h("div",{class:"group-h"}, h("h3",{},"Needs your review"), h("span",{class:"count"}, review.length)), h("div",{class:"panel list"}, review.map(itemRow))) : null,
-    roles.length ? h("section",{}, h("div",{class:"group-h"}, h("h3",{},"Your event roles")),
-      h("div",{class:"row"}, ...roles.map(({label,r}) => h("span",{class:"who-chip", style:"padding:4px 12px"}, h("b",{}, r.title), h("span",{class:"muted"}, " · "+label))))) : null,
-    done.length ? h("section",{}, h("div",{class:"group-h"}, h("h3",{},"Recently done")), h("div",{class:"panel list"}, done.map(t=>taskRow(t)))) : null
+      tile(open.length, "open tasks"),
+      tile(dueSoon.length, "posts due in 7 days", dueSoon.some(c=>daysUntil(c.deadline)<0) ? "bad" : ""),
+      tile(review.length, "drafts to review", review.length ? "warn" : "")),
+    h("div",{class:"dash"},
+      h("div",{class:"dash-col"},
+        card("To do", h("button",{class:"link", type:"button", onclick:()=>openTask(null)},"+ Add task"),
+          h("div",{class:"list"}, open.length ? open.map(t=>taskRow(t)) : h("div",{class:"empty"},"Nothing open right now."))),
+        card("Content due soon", link("Open calendar","calendar"),
+          h("div",{class:"list"}, dueSoon.length ? dueSoon.map(itemRow) : h("div",{class:"empty"},"No content deadlines in the next 7 days."))),
+        review.length ? card("Needs your review", null, h("div",{class:"list"}, review.map(itemRow))) : null,
+        done.length ? card("Recently done", null, h("div",{class:"list"}, done.map(t=>taskRow(t)))) : null),
+      h("div",{class:"dash-col"},
+        card("Upcoming events", link("Org chart","events"),
+          h("div",{class:"list"}, nextEvents.length ? nextEvents.map(e => h("div",{class:"mini-row"}, brandChip(e.brand),
+            h("div",{style:"min-width:0"}, h("div",{class:"t"}, seriesById(e.seriesId)?.name || e.name), h("div",{class:"meta"}, fmt(e.date))),
+            h("span",{class:"pill"}, daysUntil(e.date)===0 ? "Today" : `in ${daysUntil(e.date)}d`))) : h("div",{class:"empty"},"No upcoming meetups."))),
+        roles.length ? card("Your event roles", null, h("div",{class:"p-tags", style:"padding:4px 18px 16px"}, ...roles.map(({label,r}) => h("span",{class:"p-tag"}, `${r.title} · ${label}`)))) : null,
+        card("Analytics", link("View all","analytics"),
+          last ? h("div",{class:"mini-kpi"}, h("div",{class:"stat-l"}, `Instagram reach · ${monthLabel(last.id, true)}`), h("div",{class:"stat-n"}, fmtNum("igReach", last.igReach)),
+            kd ? h("div",{class:"small "+(kd.up?"up":"down")}, `${kd.up?"▲":"▼"} ${kd.text} vs ${monthLabel(prev.id)}`) : null)
+            : h("div",{class:"empty"},"No KPIs entered yet.")),
+        card("Team", link("View all","roles"),
+          h("div",{class:"list"}, ...teamPeek.map(t => h("div",{class:"mini-row"}, avatar(t), h("div",{style:"min-width:0"}, h("div",{class:"t"}, t.name), h("div",{class:"meta"}, t.role||"")))))))
+    )
   ];
 }
 function openTask(id){

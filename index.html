@@ -7,8 +7,9 @@
 <link rel="icon" href="assets/fiesta-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
@@ -22,23 +23,26 @@
   </div>
 </div>
 
-<div id="app" hidden>
-  <header class="top">
-    <div class="wide-wrap top-in">
-      <div class="brand">
-        <img class="logo-img" src="assets/fiesta-logo.png" alt="">
-        <div><div class="name">FIESTA Media Hub</div><div class="sub">FIESTA · FoundHERs · Newsletter</div></div>
-      </div>
-      <div class="top-actions">
-        <span id="access-badge" class="access-badge"></span>
-        <span id="who-email" class="who"></span>
-        <button id="bell" class="bell" type="button" aria-label="Notifications"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span>Notifications</span><span id="bell-count" class="badge" hidden>0</span></button>
-        <button id="signout" class="btn sm" type="button">Sign out</button>
-      </div>
+<div id="app" class="layout" hidden>
+  <aside class="sidebar">
+    <div class="sb-brand"><img src="assets/fiesta-logo.png" alt=""><span>FIESTA <b>Hub</b></span></div>
+    <nav id="tabs" class="sb-nav" role="tablist" aria-label="Sections"></nav>
+    <div class="sb-foot">
+      <nav id="tabs-foot" class="sb-nav" aria-label="Admin"></nav>
+      <button id="signout" class="nav-item" type="button"><span class="ic" data-icon="logout"></span>Log out</button>
     </div>
-  </header>
-  <div class="wide-wrap shell">
-    <nav class="side" id="tabs" role="tablist" aria-label="Sections" aria-orientation="vertical"></nav>
+  </aside>
+  <div class="content">
+    <header class="topbar">
+      <div id="tb-date" class="tb-date"></div>
+      <div class="tb-right">
+        <button id="bell" class="icon-btn" type="button" aria-label="Notifications"><span class="ic" data-icon="bell"></span><span id="bell-count" class="dot-badge" hidden>0</span></button>
+        <div class="tb-user">
+          <span id="tb-avatar"></span>
+          <div class="tb-who"><div id="tb-name" class="tb-name"></div><div class="tb-sub"><span id="access-badge"></span> · <span id="who-email"></span></div></div>
+        </div>
+      </div>
+    </header>
     <main id="main"></main>
   </div>
   <div id="scrim" hidden></div>
