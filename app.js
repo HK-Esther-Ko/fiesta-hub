@@ -209,6 +209,7 @@ let started = false;
 onUser(async user => {
   if (!user){ showGate("signin"); return; }
   S.myEmail = (user.email || "").toLowerCase();
+  S.googleName = user.displayName || "";
   S.access = isBootstrapAdmin(S.myEmail) ? "admin" : await getAccess(S.myEmail);
   if (!S.access){ showGate("denied", user.email); return; }
   document.getElementById("gate").hidden = true;
@@ -228,7 +229,7 @@ function start(){
     if (a !== S.access){ S.access = a; document.getElementById("access-badge").textContent = accessLabel(a); renderTabs(); renderMain(); }
     if (a === "admin" && !S.allowedSub) S.allowedSub = db.collection("allowed").onSnapshot(s => { S.allowed = s.docs.map(x=>({id:x.id, ...x.data()})); renderMain(); }, onErr);
   }, onErr);
-  db.collection("team").onSnapshot(s => { S.team = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")); autoMatch(); renderHeader(); renderMain(true); }, onErr);
+  db.collection("team").onSnapshot(s => { S.team = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")); autoMatch(); renderHeader(); renderMain(true); maybeOnboard(); }, onErr);
   db.collection("content").onSnapshot(s => { S.content = s.docs.map(d=>({id:d.id, ...d.data()})); renderMain(); }, onErr);
   db.collection("sops").onSnapshot(s => { S.sops = s.docs.map(d=>({id:d.id, ...d.data()})); renderMain(); }, onErr);
   db.collection("messages").orderBy("createdAt","desc").limit(400).onSnapshot(s => { S.messages = s.docs.map(d=>({id:d.id, ...d.data()})).reverse(); renderHeader(); updateThreads(); if (S.view!=="chat") renderMain(); }, onErr);
@@ -348,7 +349,39 @@ function openKpi(id){
       }},"Save"))
   ]);
 }
-// the signed-in Google email decides who you are; the "You are" picker is only a fallback
+// first sign-in: ask for a display name and link the account to a teammate card
+function maybeOnboard(){
+  if (S.onboardShown || !S.myEmail) return;
+  if (S.team.some(t => (t.email||"").toLowerCase() === S.myEmail)) return;
+  S.onboardShown = true;
+  const name = h("input",{type:"text", id:"ob-name", placeholder:"First and last name, e.g. Esther Ko"}); name.value = S.googleName;
+  const open = S.team.filter(t => !t.email);
+  const who = h("select",{id:"ob-who"}, h("option",{value:""},"I'm not on the list: add me"), ...open.map(t => h("option",{value:t.id}, t.name + (t.role ? " · " + t.role : ""))));
+  const guessFrom = v => { const f = (v.trim().split(/\s+/)[0]||"").toLowerCase(); const g = open.find(t => (t.name||"").toLowerCase().split(/\s+/)[0] === f); if (g) who.value = g.id; };
+  guessFrom(name.value);
+  name.addEventListener("change", () => { if (!who.value) guessFrom(name.value); });
+  const status = h("div",{class:"cmp-status"});
+  openDrawer("Welcome to FIESTA Hub", [
+    h("p",{style:"margin:0"},"What should we call you? Teammates see this name in the top bar, on the team page and when they @mention you."),
+    h("div",{class:"fields"},
+      h("div",{class:"field full"}, h("label",{for:"ob-name"},"Your name"), name),
+      h("div",{class:"field full"}, h("label",{for:"ob-who"},"Which team card is yours?"), who)),
+    h("p",{class:"small muted", style:"margin:0"},"Picking your card links it to this Google account, so your tasks and deadlines find you."),
+    h("div",{class:"d-actions"}, h("button",{class:"btn ghost", type:"button", onclick:closeDrawer},"Later"),
+      h("button",{class:"btn primary", type:"button", onclick:async()=>{
+        const n = name.value.trim(); if (!n){ status.textContent = "Add your name."; return; }
+        try{
+          let id = who.value;
+          if (id) await db.collection("team").doc(id).update({name:n, email:S.myEmail});
+          else id = (await db.collection("team").add({name:n, email:S.myEmail, role:"", duties:"", group:"", photo:""})).id;
+          S.meId = id; save("hub.me", id);
+          closeDrawer(); toast(`Welcome, ${n}!`); renderHeader(); renderMain();
+        }catch(e){ status.textContent = dbErr(e); }
+      }},"Save")),
+    status
+  ]);
+}
+// the signed-in Google email decides who you are
 function autoMatch(){
   if (!S.myEmail) return;
   const hit = S.team.find(t => (t.email||"").toLowerCase() === S.myEmail);
