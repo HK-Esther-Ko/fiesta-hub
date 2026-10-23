@@ -254,10 +254,10 @@ function delta(k, cur, prev){
   const p = (cur - prev) / prev * 100; return {up:p>=0, text:`${p>=0?"+":""}${p.toFixed(1)}%`};
 }
 // single-series line: 2px line, 8px markers, recessive grid, crosshair + tooltip on hover
-function lineChart(rows, key){
+function lineChart(rows, key, size){
   const pts = rows.filter(r => typeof r[key] === "number");
   if (pts.length < 2) return h("div",{class:"empty"},"Add at least two months of numbers to see a trend.");
-  const W = 680, H = 240, L = 52, R = 20, T = 18, B = 34;
+  const W = size?.w || 680, H = size?.h || 240, L = 46, R = 14, T = 16, B = 30;
   const vals = pts.map(p => p[key]);
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if (lo === hi){ lo -= 1; hi += 1; }
@@ -331,7 +331,7 @@ function viewAnalytics(){
     cur ? h("div",{class:"kpis"},
       kpi("1","Growth","Month-over-month follower growth.",
         signed(cur.igGrowth), " new followers",
-        cur.igFollowers != null ? `${cur.igGrowthPct != null ? signed(cur.igGrowthPct).replace(/(\d)$/,"$1") + "% · " : ""}${fmtNum("igFollowers", cur.igFollowers)} followers` : null, growthD),
+        cur.igFollowers != null ? `${cur.igGrowthPct != null ? (cur.igGrowthPct > 0 ? "+" : "") + cur.igGrowthPct + "% · " : ""}${fmtNum("igFollowers", cur.igFollowers)} followers` : null, growthD),
       kpi("2","Shares","How often content is shared. Shares and saves push organic distribution.",
         fmtNum("igShares", cur.igShares), " shares", cur.igSaves != null ? `${fmtNum("igSaves", cur.igSaves)} saves` : null, change("igShares")),
       kpi("3","Conversion","Bio link activity that moves people from Instagram to the FIESTA website.",
@@ -339,7 +339,7 @@ function viewAnalytics(){
         cur.igClickRate != null ? `${cur.igClickRate}% of ${fmtNum("igProfileVisits", cur.igProfileVisits)} profile visits` : null, change("igLinkClicks"))) : null,
     rows.length >= 2 ? h("div",{class:"kpis"},
       ...[["igGrowth","Growth · new followers"],["igShares","Shares"],["igLinkClicks","Conversion · link clicks"]].map(([k, t]) =>
-        h("section",{class:"card", style:"padding-bottom:12px"}, h("div",{class:"card-h"}, h("h3",{}, t)), h("div",{style:"padding:0 12px"}, lineChart(rows, k))))) : null,
+        h("section",{class:"card", style:"padding-bottom:12px"}, h("div",{class:"card-h"}, h("h3",{}, t)), h("div",{style:"padding:0 12px"}, lineChart(rows, k, {w:340, h:190}))))) : null,
     cur ? h("div",{class:"dash"},
       card(`Experiments · ${monthLabel(cur.id, true)}`, canContent() ? h("button",{class:"link", type:"button", onclick:()=>openKpi(cur.id)},"Edit") : null,
         h("div",{class:"exp"},

@@ -139,3 +139,5 @@ select,input[type=text],input[type=url],input[type=email],input[type=date],input
 .exp{display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:4px 18px 18px}
 .exp p{margin:4px 0 0; white-space:pre-wrap}
 @media (max-width:900px){ .kpis{grid-template-columns:1fr} .exp{grid-template-columns:1fr} }
+
+.spread .row select{width:auto; min-width:170px}
