@@ -55,6 +55,7 @@ const METRICS = [
   ["igProfileVisits","Profile visits"],["igLinkClicks","Bio link clicks"],["igReach","Accounts reached"]
 ];
 const isRateKey = k => k === "igClickRate" || k === "igGrowthPct";
+const AREA_LABELS = {Lead:"FIESTA leadership"};
 const AREAS = ["Lead","Program","Media","Operations","After the event","Advisory"];
 const ROLE_TEMPLATE = [
   ["Lead","Event lead"],["Program","MC / host"],["Program","Pitch coordinator"],["Program","Judges & speakers contact"],
@@ -1025,7 +1026,7 @@ function viewEvents(){
     h("div",{class:"seg oc-switch", role:"group", "aria-label":"Event"}, ...series.map(s => h("button",{type:"button", "aria-pressed": String(s.id===cur.id), onclick:()=>{ S.chartId = s.id; save("hub.chart", s.id); renderMain(); }}, s.name))),
     h("section",{class:"panel oc", style:`--c:${(BRANDS[cur.brand]||{}).c||"var(--accent)"}`},
       h("div",{class:"oc-root"}, h("div",{class:"oc-title"}, cur.name), h("div",{class:"oc-sub"}, ruleText(cur.rule) + (next ? " · next " + fmt(next.date) : ""))),
-      areas.length ? h("div",{class:"oc-areas"}, ...areas.map(([a, people]) => h("div",{class:"oc-col"}, h("div",{class:"oc-area"}, a), ...people.map(ocNode))))
+      areas.length ? h("div",{class:"oc-areas"}, ...areas.map(([a, people]) => h("div",{class:"oc-col"}, h("div",{class:"oc-area"}, AREA_LABELS[a] || a), ...people.map(ocNode))))
         : h("div",{class:"empty", style:"text-align:center"}, "No roles yet. ", h("button",{class:"btn sm", type:"button", onclick:()=>useTemplate(asEvent)},"Start from the template"))),
     next ? h("details",{class:"panel fold", open:S.pitchOpen, ontoggle:ev=>{ S.pitchOpen = ev.target.open; }},
       h("summary",{}, `Pitchers at the next ${cur.name} · ${fmtShort(next.date)}`, h("span",{class:"count"}, " " + S.founders.length)),
