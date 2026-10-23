@@ -998,7 +998,7 @@ function groupRoles(list){
   return [...m.values()];
 }
 function ocNode(g){
-  const p = g.personId ? teamById(g.personId) : null, nm = p ? p.name : g.name;
+  const p = g.personId ? teamById(g.personId) : null, nm = p ? (p.name || p.id) : g.name;
   return h("div",{class:"oc-node"+(nm ? "" : " open")},
     nm ? avatar(p || {name:nm}) : h("span",{class:"av oc-q", "aria-hidden":"true"},"?"),
     h("div",{style:"min-width:0"}, h("div",{class:"oc-name"}, nm || "Open role"), h("div",{class:"oc-role"}, g.titles.join(" · "))));
