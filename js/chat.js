@@ -1,6 +1,7 @@
 // Team chat: one team channel, direct messages, small group chats, and per-post threads.
 // Opens as a floating panel (bottom right) instead of a full page.
-import { S, db, h, icon, avatar, nameOf, teamById, teamSorted, relTime, toast, dbErr, load, save, openDrawer, closeDrawer, field, input } from "./core.js";
+import { S, db, h, icon, avatar, isAdmin, nameOf, teamById, teamSorted, relTime, toast, dbErr, load, save, openDrawer, closeDrawer, field, input } from "./core.js";
+import { openTask, duePill } from "./requests.js";
 
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const dmThread = (a, b) => "dm:" + [a, b].sort().join("|");
@@ -33,6 +34,13 @@ export function unreadTotal(){
 }
 function markSeen(t){ const last = S.messages.filter(m => m.thread === t).pop(); if (last) save(seenKey(t), last.createdAt); }
 
+// a request sent from chat shows as a card in the thread; it opens the request itself
+function requestCard(id){
+  const t = S.tasks.find(x => x.id === id);
+  if (!t) return h("div",{class:"msg-req gone"},"Request removed");
+  return h("button",{class:"msg-req" + (t.done ? " done" : ""), type:"button", onclick:() => openTask(id)},
+    h("span",{class:"lbl"}, t.done ? "Request · done" : "Request"), h("b",{}, t.text), duePill(t));
+}
 export function threadList(thread){ return h("div",{class:"thread", "data-thread":thread}); }
 export function updateThreads(){
   document.querySelectorAll("[data-thread]").forEach(el => {
@@ -41,7 +49,7 @@ export function updateThreads(){
     el.replaceChildren(...(msgs.length ? msgs.map(m => { const a = teamById(m.authorId);
       return h("div",{class:"msg" + (m.authorId === S.meId ? " mine" : "")}, avatar(a, "sm"),
         h("div",{class:"msg-b"}, h("div",{class:"msg-h"}, h("b",{}, a?.name || "Someone"), h("span",{class:"muted small"}, relTime(m.createdAt))),
-          h("div",{class:"msg-t"}, ...richText(m.text || ""))));
+          h("div",{class:"msg-t"}, ...richText(m.text || "")), m.taskId ? requestCard(m.taskId) : null));
     }) : [h("div",{class:"empty"}, "No messages yet.")]));
     if (near) el.scrollTop = el.scrollHeight;
   });
@@ -83,7 +91,14 @@ export function composer(thread){
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); go(); }
   });
   send.onclick = go;
-  return h("div",{class:"composer"}, menu, ta, h("div",{class:"cmp-foot"}, h("span",{class:"small muted"},"Enter to send · Shift+Enter for a new line"), send));
+  // admins can turn a chat into a request: who it's for comes from the DM or the @mentions typed so far
+  const ask = isAdmin() ? h("button",{class:"btn sm", type:"button", onclick:() => {
+    const dm = thread.startsWith("dm:") ? thread.slice(3).split("|").filter(x => x !== S.meId) : [];
+    const ownerIds = [...new Set([...dm, ...extractMentions(ta.value)])];
+    const post = S.content.find(c => c.id === thread);
+    openTask(null, {ownerIds, thread, text:S.team.reduce((s, m) => m.name ? s.replace(new RegExp("@" + escRe(m.name), "gi"), "") : s, ta.value).replace(/\s+/g, " ").trim().slice(0, 140), postId:post?.id || "", due:post?.deadline || ""});
+  }}, "+ Request") : null;
+  return h("div",{class:"composer"}, menu, ta, h("div",{class:"cmp-foot"}, h("span",{class:"small muted"},"Enter to send · Shift+Enter for a new line"), h("div",{class:"row"}, ask, send)));
 }
 
 /* ---------- floating chat panel ---------- */

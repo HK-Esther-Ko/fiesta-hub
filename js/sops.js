@@ -1,5 +1,5 @@
 // SOPs: the main media team SOP, with the social / content SOP below it. Each opens as its own page.
-import { S, db, h, icon, avatar, isAdmin, registerView, renderMain, setView, lines, teamById, toast, dbErr, openDrawer, closeDrawer, field, input, textarea } from "./core.js";
+import { S, db, h, icon, avatar, isAdmin, registerView, renderMain, setView, lines, teamById, teamSorted, toast, dbErr, openDrawer, closeDrawer, field, input, textarea } from "./core.js";
 
 const plainName = s => String(s || "").replace(/\s*\(new\)\s*$/i, "");
 const newify = t => [plainName(t), /\(new\)\s*$/i.test(t || "") ? h("span",{class:"pill new"},"New") : null];
@@ -32,7 +32,8 @@ function sopPage(s){
       isAdmin() ? h("button",{class:"btn", type:"button", onclick:() => openSopEditor(s)},"Edit") : null),
     (s.roles || []).length > 1 ? h("nav",{class:"jump"}, ...(s.roles || []).map(r => h("button",{type:"button", onclick:() => document.getElementById("r-" + keyOf(r.name))?.scrollIntoView({behavior:"smooth"})}, plainName(r.name)))) : null,
     ...(s.roles || []).map(r => {
-      const nm = plainName(r.name), who = whoFor(nm), ds = lines(r.deliverables).map(parseDeliv), how = lines(r.how);
+      // people picked on the SOP itself win; otherwise match the role name to the FIESTA org chart
+      const nm = plainName(r.name), who = r.personIds?.length ? r.personIds.map(teamById).filter(Boolean) : whoFor(nm), ds = lines(r.deliverables).map(parseDeliv), how = lines(r.how);
       return h("section",{class:"card sop-role", id:"r-" + keyOf(r.name)},
         h("header",{class:"rs-head"}, h("div",{}, h("h3",{class:"rs-title"}, ...newify(r.name)), r.purpose ? h("p",{class:"muted"}, r.purpose) : null),
           h("div",{class:"rs-meta"}, ...who.map(p => h("span",{class:"who-chip"}, avatar(p, "sm"), p.name)), r.folder ? h("span",{class:"folder-tag"}, r.folder) : null)),
@@ -48,15 +49,18 @@ function viewSops(){ const s = S.sopOpen && visibleSops().find(x => x.id === S.s
 function openSopEditor(s){
   const title = input("se-title", s.title), summary = textarea("se-sum", s.summary, 2);
   const rf = (s.roles || []).map((r, i) => ({name:input(`sr-${i}-n`, r.name), folder:input(`sr-${i}-f`, r.folder), purpose:textarea(`sr-${i}-p`, r.purpose, 2),
-    how:textarea(`sr-${i}-h`, r.how, 4, "One instruction per line"), deliverables:textarea(`sr-${i}-d`, r.deliverables, 3, "50 | General photos\n3/pitcher | Photos per pitcher"), later:textarea(`sr-${i}-l`, r.later, 2)}));
+    how:textarea(`sr-${i}-h`, r.how, 4, "One instruction per line"), deliverables:textarea(`sr-${i}-d`, r.deliverables, 3, "50 | General photos\n3/pitcher | Photos per pitcher"), later:textarea(`sr-${i}-l`, r.later, 2),
+    who:teamSorted().map(t => { const cb = h("input",{type:"checkbox", id:`sr-${i}-w-${t.id}`, value:t.id}); cb.checked = (r.personIds || []).includes(t.id); return [t, cb]; })}));
   const msg = h("div",{class:"cmp-status"});
   openDrawer("Edit SOP", [
     h("p",{class:"small muted", style:"margin:0"},"Deliverables: “50 | General photos” makes a countable tile; “3/pitcher |” scales with pitchers. Add “(New)” at the end of anything new."),
     h("div",{class:"fields"}, field("Title", title, true), field("Summary", summary, true)),
     ...rf.map((f, i) => h("section",{class:"sop-edit"}, h("div",{class:"form-sec"}, `Section ${i + 1}`),
-      h("div",{class:"fields"}, field("Name", f.name), field("Folder", f.folder), field("What it's for", f.purpose, true), field("How to do it", f.how, true), field("Deliverables", f.deliverables, true), field("Next to measure", f.later, true)))),
+      h("div",{class:"fields"}, field("Name", f.name), field("Folder", f.folder),
+        h("div",{class:"field full"}, h("span",{class:"lbl"},"Who does this (leave empty to use the org chart)"), h("div",{class:"owners"}, ...f.who.map(([t, cb]) => h("label",{for:cb.id}, cb, avatar(t, "sm"), t.name)))), field("What it's for", f.purpose, true), field("How to do it", f.how, true), field("Deliverables", f.deliverables, true), field("Next to measure", f.later, true)))),
     h("div",{class:"d-actions"}, msg, h("button",{class:"btn primary", type:"button", onclick:async () => {
-      const roles = rf.map(f => ({name:f.name.value.trim(), folder:f.folder.value.trim(), purpose:f.purpose.value.trim(), how:f.how.value.trim(), deliverables:f.deliverables.value.trim(), later:f.later.value.trim()})).filter(r => r.name);
+      const roles = rf.map(f => ({name:f.name.value.trim(), folder:f.folder.value.trim(), purpose:f.purpose.value.trim(), how:f.how.value.trim(), deliverables:f.deliverables.value.trim(), later:f.later.value.trim(),
+        personIds:f.who.filter(([, cb]) => cb.checked).map(([t]) => t.id)})).filter(r => r.name);
       try{ await db.collection("sops").doc(s.id).update({title:title.value.trim() || s.title, summary:summary.value.trim(), roles, updatedAt:new Date().toISOString()}); closeDrawer(); toast("SOP saved."); }
       catch(e){ msg.textContent = dbErr(e); }
     }},"Save"))

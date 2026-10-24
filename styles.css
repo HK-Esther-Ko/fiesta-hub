@@ -567,3 +567,8 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 /* keep Save in view in long drawers: it rides the bottom edge until you scroll past it */
 .d-body > .d-actions{position:sticky; bottom:-28px; z-index:2; background:var(--surface); margin:0 -20px; padding:12px 20px 14px; border-top:1px solid var(--line)}
 .fields .check-row{flex-direction:row; gap:10px}
+
+.msg-req{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin-top:6px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--surface); text-align:left; cursor:pointer; font:inherit; color:inherit}
+.msg-req:hover{border-color:var(--accent)} .msg-req .lbl{width:100%; color:var(--accent)} .msg-req.done b{text-decoration:line-through; color:var(--muted)}
+.msg-req.gone{cursor:default; color:var(--muted); font-size:12px}
+.drive-all{margin:4px 0 0; font-size:13px; color:var(--muted)} .drive-all a{color:var(--accent); font-weight:600}

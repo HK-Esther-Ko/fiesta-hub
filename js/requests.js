@@ -118,7 +118,12 @@ export function openTask(id, preset){
         if (st.value === "done" && !t.done) data.doneAt = new Date().toISOString();
         try{
           if (id) await db.collection("tasks").doc(id).update(data);
-          else await db.collection("tasks").add({...data, createdBy:S.meId || "", createdAt:new Date().toISOString()});
+          else {
+            const ref = await db.collection("tasks").add({...data, createdBy:S.meId || "", createdAt:new Date().toISOString()});
+            // started from a chat: post it there so the conversation shows what was asked
+            if (t.thread) await db.collection("messages").add({thread:t.thread, text:`Request for ${ownerIds.map(x => "@" + nameOf(x)).join(" ")}: ${data.text}`,
+              authorId:S.meId, mentions:ownerIds, taskId:ref.id, createdAt:new Date().toISOString()});
+          }
           const to = ownerIds.filter(x => x !== S.meId && !(id && current.includes(x)));
           closeDrawer(); toast(to.length ? `Sent to ${to.map(nameOf).join(", ")}.` : id ? "Saved." : "Added.");
           if (to.length){

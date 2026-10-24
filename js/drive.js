@@ -42,11 +42,14 @@ function viewDrive(){
           h("span",{class:"folder-ic"}, icon("drive", 22)),
           h("div",{class:"folder-b"}, h("h3",{}, fixed ? title : `${title} · ${y}`), h("p",{}, desc)),
           h("span",{class:"folder-go"}, u ? "Open ↗" : "No link yet"));
-      }))))
+      })))),
+    // the whole marketing Drive is hard to find things in, so it stays a small link under the shortcuts
+    safeUrl(S.links.marketingRoot) ? h("p",{class:"drive-all"}, "Can't find it here? ", h("a",{href:safeUrl(S.links.marketingRoot), target:"_blank", rel:"noopener"},"Open the full marketing Drive ↗")) : null
   ];
 }
 function openLinks(y){
-  const folders = DRIVE.flatMap(([, items]) => items).map(([k, l, , fixed]) => [fixed ? k : `${k}@${y}`, fixed ? l : `${l} · ${y}`, linkFor(k, fixed, y)]);
+  const folders = [...DRIVE.flatMap(([, items]) => items).map(([k, l, , fixed]) => [fixed ? k : `${k}@${y}`, fixed ? l : `${l} · ${y}`, linkFor(k, fixed, y)]),
+    ["marketingRoot", "Full marketing Drive (small link at the bottom, every year)", S.links.marketingRoot]];
   const all = [...folders, ...CHANNELS.map(([k, l, def]) => [k, l, S.links[k] || def])];
   const inputs = all.map(([k, l, v]) => [k, l, input("lnk-" + k.replace("@", "-"), v, {type:"url", placeholder:"https://…"})]);
   const msg = h("div",{class:"cmp-status"});

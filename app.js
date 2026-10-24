@@ -85,7 +85,7 @@ function notifications(){
   }
   for (const t of S.tasks.filter(t => isMyTask(t) && !t.done && t.due && daysUntil(t.due) <= 2))
     out.push({sticky:true, tone:daysUntil(t.due) < 0 ? "bad" : "warn", label:daysUntil(t.due) < 0 ? "Request late" : "Request due", text:t.text, go:() => openTask(t.id)});
-  for (const m of S.messages.filter(m => m.authorId !== S.meId && ((m.mentions || []).includes(S.meId) || (m.thread.startsWith("dm:") && m.thread.slice(3).split("|").includes(S.meId))))){
+  for (const m of S.messages.filter(m => m.authorId !== S.meId && !m.taskId && ((m.mentions || []).includes(S.meId) || (m.thread.startsWith("dm:") && m.thread.slice(3).split("|").includes(S.meId))))){
     const isDm = m.thread.startsWith("dm:"), post = S.content.find(c => c.id === m.thread);
     out.push({at:m.createdAt, label:isDm ? `${nameOf(m.authorId)} sent you a message` : `${nameOf(m.authorId)} mentioned you` + (post ? ` on “${post.title}”` : ` in ${threadTitle(m.thread)}`), text:m.text,
       go:() => post ? openItem(post.id) : openChat(m.thread)});
