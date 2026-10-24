@@ -623,3 +623,7 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .msg.cont{margin-top:-6px} .msg.cont .msg-t{border-radius:14px}
 .msg-req{max-width:min(78%, 520px)}
 .msg .msg-t .mention{font-weight:700}
+/* SOP roles: people and folder always sit in one row under the title, left-aligned */
+.rs-head{flex-direction:column; justify-content:flex-start; gap:10px}
+.rs-meta{justify-content:flex-start; align-items:center}
+.who-chip.none{padding:4px 10px; color:var(--muted); font-weight:600; border-style:dashed}

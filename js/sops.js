@@ -36,7 +36,7 @@ function sopPage(s){
       const nm = plainName(r.name), who = r.personIds?.length ? r.personIds.map(teamById).filter(Boolean) : whoFor(nm), ds = lines(r.deliverables).map(parseDeliv), how = lines(r.how);
       return h("section",{class:"card sop-role", id:"r-" + keyOf(r.name)},
         h("header",{class:"rs-head"}, h("div",{}, h("h3",{class:"rs-title"}, ...newify(r.name)), r.purpose ? h("p",{class:"muted"}, r.purpose) : null),
-          h("div",{class:"rs-meta"}, ...who.map(p => h("span",{class:"who-chip"}, avatar(p, "sm"), p.name)), r.folder ? h("span",{class:"folder-tag"}, r.folder) : null)),
+          h("div",{class:"rs-meta"}, ...(who.length ? who.map(p => h("span",{class:"who-chip"}, avatar(p, "sm"), p.name)) : [h("span",{class:"who-chip none"},"Not assigned yet")]), r.folder ? h("span",{class:"folder-tag"}, r.folder) : null)),
         ds.length ? h("div",{class:"rs-block"}, h("div",{class:"lbl"},"What to hand over"), h("div",{class:"tiles"}, ...ds.map(d => h("div",{class:"tile"},
           h("div",{class:"tile-n"}, d.count == null ? "✓" : d.per ? `${d.count}×` : String(d.count)), h("div",{class:"tile-u"}, d.count == null ? "To do" : d.per ? "Per pitcher" : "Total"), h("div",{class:"tile-t"}, ...newify(d.text)))))) : null,
         how.length ? h("div",{class:"rs-block"}, h("div",{class:"lbl"},"How to do it"), h("ul",{class:"checks"}, ...how.map(l => h("li",{}, ...newify(l))))) : null,
