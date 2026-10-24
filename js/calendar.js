@@ -1,5 +1,5 @@
 // Content calendar: what goes live, where and when. Production deadlines are listed under the grid.
-import { S, db, h, icon, isAdmin, registerView, renderMain, setView, save, ymd, parse, pad, today, addDays, daysUntil, fmt, fmtShort, monthName, firstOfMonth,
+import { S, db, h, icon, isAdmin, realAdmin, registerView, renderMain, setView, save, ymd, parse, pad, today, addDays, daysUntil, fmt, fmtShort, monthName, firstOfMonth,
   safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, deadlinePill,
   allEvents, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
 import { threadList, composer, updateThreads } from "./chat.js";
@@ -92,6 +92,7 @@ export function openItem(id, day){
   const raw = id ? S.content.find(x => x.id === id) : null;
   if (id && !raw) return;
   const c = raw ? normItem(raw) : {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo", publishDate:day || ""};
+  if (!isAdmin() && ownersFor(c).includes(S.meId)){ openOwnItem(id, c); return; }
   if (!isAdmin()){
     const drive = safeUrl(c.driveUrl);
     openDrawer(c.title, [h("div",{class:"row"}, brandChip(c.brand), statusPill(c.status)), facts(c),
@@ -137,6 +138,36 @@ export function openItem(id, day){
           closeDrawer(); toast(id ? "Saved." : "Added to the calendar."); }catch(e){ msg.textContent = dbErr(e); }
       }}, id ? "Save changes" : "Add to calendar")), msg,
     id ? prepSection(c) : null, id ? discussion(c) : null
+  ]);
+  updateThreads();
+}
+
+// owners (not admins) work on their own posts: progress, brief, folder and finished file.
+// Date, deadline, platform and owner stay with admins.
+function openOwnItem(id, c){
+  let status = c.status;
+  const seg = h("div",{class:"seg status-seg", role:"group", "aria-label":"Progress"}, ...STATUS.map(([k, l]) => h("button",{type:"button", class:"st-" + k, "aria-pressed":String(status === k), onclick:ev => {
+    status = k; seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget))); }}, h("i",{}), l)));
+  const notes = textarea("ow-notes", c.notes, 4, "What the post says: featured founder, key points, caption draft…");
+  const drive = input("ow-drive", c.driveUrl, {type:"url", placeholder:"Drive folder with raw files and drafts"});
+  const final = input("ow-final", c.finalUrl, {type:"url", placeholder:"Drive link to the finished file"});
+  const msg = h("div",{class:"cmp-status"});
+  openDrawer(c.title, [
+    h("div",{class:"row"}, brandChip(c.brand), h("span",{class:"pill"},"Your post")),
+    h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
+    h("dl",{class:"facts"},
+      h("div",{}, h("dt",{},"Goes live"), h("dd",{}, c.publishDate ? fmt(c.publishDate) + (c.time ? " · " + c.time : "") : "Not scheduled")),
+      h("div",{}, h("dt",{},"Production deadline"), h("dd",{}, c.deadline ? [fmt(c.deadline), " ", deadlinePill(c)] : "Not set")),
+      h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
+      h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", ")))),
+    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Working folder", drive, true), field("Finished file", final, true)),
+    h("div",{class:"d-actions"}, h("span",{class:"small muted"},"Date and deadline are set by an admin."),
+      h("button",{class:"btn primary", type:"button", onclick:async () => {
+        if (realAdmin() && S.preview){ closeDrawer(); toast("Preview: nothing was saved."); return; }
+        try{ await db.collection("content").doc(id).update({status, notes:notes.value.trim(), driveUrl:drive.value.trim(), finalUrl:final.value.trim(), updatedAt:new Date().toISOString()});
+          closeDrawer(); toast("Saved."); }catch(e){ msg.textContent = dbErr(e); }
+      }},"Save")), msg,
+    prepSection(c), discussion(c)
   ]);
   updateThreads();
 }

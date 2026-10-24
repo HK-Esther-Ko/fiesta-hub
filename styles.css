@@ -564,3 +564,5 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .gate-pv{margin:14px 0 0; padding:10px 12px; border-radius:10px; background:var(--accent-soft); color:var(--ink); font-size:13px; text-align:left}
 .check-row{display:flex; gap:10px; align-items:flex-start; cursor:pointer}
 .check-row input{margin-top:3px; accent-color:var(--accent)}
+/* keep Save in view in long drawers: it rides the bottom edge until you scroll past it */
+.d-body > .d-actions{position:sticky; bottom:-28px; z-index:2; background:var(--surface); margin:0 -20px; padding:12px 20px 14px; border-top:1px solid var(--line)}

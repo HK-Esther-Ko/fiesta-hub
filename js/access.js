@@ -3,12 +3,13 @@
 import { S, h, isAdmin, setPreview, registerView, teamById, teamSorted, toast, dbErr, openDrawer, closeDrawer, field, input, select } from "./core.js";
 import { setAccess, removeAccess, importData } from "../firebase.js";
 
-const LEVELS = [["admin","Admin","Edits the calendar, roles, SOPs, analytics and access. Assigns requests."],["member","Team member","Sees everything; manages their own tasks, profile and chat."]];
+const LEVELS = [["admin","Admin","Edits the calendar, roles, SOPs, analytics and access. Assigns requests."],["member","Team member","Sees everything; updates progress, brief and files on posts they own, plus their own tasks, profile and chat."]];
 const level = a => a === "admin" ? "admin" : "member";
 
 function viewAccess(){
   if (!isAdmin()) return [h("div",{class:"card empty-big"},"Only admins can open this page.")];
-  const rows = S.allowed.slice().sort((a, b) => (teamById(a.teamId)?.name || a.id).localeCompare(teamById(b.teamId)?.name || b.id));
+  const rows = S.allowed.slice().sort((a, b) => (level(b.access) === "admin") - (level(a.access) === "admin")
+    || (teamById(a.teamId)?.name || a.id).localeCompare(teamById(b.teamId)?.name || b.id));
   const linked = new Set(rows.map(r => r.teamId).filter(Boolean));
   const missing = teamSorted().filter(t => !linked.has(t.id));
   return [

@@ -1,7 +1,7 @@
 // Entry point: sign-in gate, app shell (menu, top bar, notifications, chat button) and live data.
 import { onUser, signIn, signOutUser, isBootstrapAdmin, getAccess } from "./firebase.js";
 import { S, db, h, icon, avatar, isAdmin, renderMain, setView, setNavHook, onRender, load, save, today, daysUntil, fmtShort, relTime,
-  teamById, nameOf, posts, isDone, ownersFor, isMyTask, realAdmin, setPreview } from "./js/core.js";
+  teamById, nameOf, posts, isDone, ownersFor, isMyTask, realAdmin, setPreview, normItem } from "./js/core.js";
 import "./js/home.js";
 import "./js/calendar.js";
 import "./js/requests.js";
@@ -182,12 +182,22 @@ function start(){
     if (a === "admin" && !S.allowedLive) S.allowedLive = live("allowed", "allowed");
     linkMe(); renderHeader(); renderMain();
   }, onErr);
-  live("team", "team", () => { linkMe(); maybeWelcome(); });
-  live("content", "content"); live("sops", "sops", renderNav); live("events", "events"); live("series", "series"); live("tasks", "tasks"); live("kpis", "kpis"); live("chats", "chats");
+  live("team", "team", () => { linkMe(); maybeWelcome(); syncOwners(); });
+  live("content", "content", syncOwners); live("sops", "sops", renderNav); live("events", "events"); live("series", "series"); live("tasks", "tasks"); live("kpis", "kpis"); live("chats", "chats");
   db.collection("messages").orderBy("createdAt", "desc").limit(500).onSnapshot(s => {
     S.messages = s.docs.map(d => ({id:d.id, ...d.data()})).reverse(); renderHeader(); updateThreads(); renderChatPanel();
   }, onErr);
   db.doc("config/links").onSnapshot(d => { S.links = d.exists ? d.data() : {}; renderMain(); }, onErr);
   db.doc("config/meetings").onSnapshot(d => { S.meetCfg = d.exists ? d.data() : null; renderMain(); }, onErr);
+}
+// security rules read ownerIds from each post, so an admin's session keeps them matching the fixed owner rules
+let syncing = false;
+async function syncOwners(){
+  if (!realAdmin() || S.preview || syncing || !S.team.length) return;
+  const off = S.content.filter(c => { const want = ownersFor(normItem(c)); return want.length && want.join() !== (c.ownerIds || []).join(); });
+  if (!off.length) return;
+  syncing = true;
+  try{ for (const c of off) await db.collection("content").doc(c.id).update({ownerIds:ownersFor(normItem(c))}); }catch(e){ console.warn(e); }
+  syncing = false;
 }
 onRender(updateThreads);
