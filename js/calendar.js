@@ -1,7 +1,7 @@
 // Content calendar: what goes live, where and when. Production deadlines are listed under the grid.
 import { S, db, h, icon, isAdmin, realAdmin, registerView, renderMain, setView, save, ymd, parse, pad, today, addDays, daysUntil, fmt, fmtShort, monthName, firstOfMonth,
   safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, deadlinePill,
-  allEvents, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
+  allEvents, meetingsBetween, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
 import { threadList, composer, updateThreads } from "./chat.js";
 import { prepSection } from "./requests.js";
 
@@ -28,6 +28,7 @@ function viewCalendar(){
   for (const c of items) if (c.publishDate) (byDay[c.publishDate] ||= []).push(c);
   for (const k in byDay) byDay[k].sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0) || hourOf(a.time) - hourOf(b.time));
   for (const e of allEvents()) if (!S.brandOff.has(e.brand)) (evDay[e.date] ||= []).push(e);
+  const meet = new Set(meetingsBetween(ymd(start), ymd(addDays(start, 41)))), mlink = safeUrl(S.meetCfg?.link);
   const weeks = Math.ceil((m.getDay() + new Date(y, mo + 1, 0).getDate()) / 7);
   const cells = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => h("div",{class:"dow"}, d));
   for (let i = 0; i < weeks * 7; i++){
@@ -35,6 +36,8 @@ function viewCalendar(){
     cells.push(h("div",{class:"day" + (d.getMonth() !== mo ? " out" : "") + (key === today() ? " today" : "")},
       h("div",{class:"d-top"}, h("span",{class:"dnum"}, d.getDate()),
         isAdmin() ? h("button",{class:"d-add", type:"button", "aria-label":`Add a post on ${fmt(key)}`, title:"Add a post on this day", onclick:() => openItem(null, key)},"+") : null),
+      meet.has(key) ? h(mlink ? "a" : "div",{class:"evt meet", href:mlink || null, target:mlink ? "_blank" : null, rel:mlink ? "noopener" : null, title:"Media team meeting" + (S.meetCfg?.time ? " · " + S.meetCfg.time : "")},
+        h("span",{class:"evt-k"},"Meeting"), S.meetCfg?.time || "Media team") : null,
       ...(evDay[key] || []).map(e => h("div",{class:"evt", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, h("span",{class:"evt-k"},"Event"), e.name)),
       ...(byDay[key] || []).map(chip)));
   }

@@ -572,3 +572,44 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .msg-req:hover{border-color:var(--accent)} .msg-req .lbl{width:100%; color:var(--accent)} .msg-req.done b{text-decoration:line-through; color:var(--muted)}
 .msg-req.gone{cursor:default; color:var(--muted); font-size:12px}
 .drive-all{margin:4px 0 0; font-size:13px; color:var(--muted)} .drive-all a{color:var(--accent); font-weight:600}
+
+/* ---------- v4: Home sections and KPI charts ---------- */
+.home-sec{display:flex; flex-direction:column; gap:14px; padding-top:22px; border-top:1px solid var(--line)}
+.home-sec-h{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap}
+.home-sec-h h2{margin:0; font-size:18px; letter-spacing:-.01em} .home-sec-h p{margin:2px 0 0; color:var(--muted); font-size:13px}
+.kt{all:unset; box-sizing:border-box; background:var(--surface); border-radius:var(--r); box-shadow:var(--shadow); padding:16px 18px 12px; display:flex; flex-direction:column; gap:4px; min-width:0}
+.kt-row{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.delta{font-size:12px; font-weight:700; padding:2px 7px; border-radius:999px; font-variant-numeric:tabular-nums}
+.delta.up{color:var(--ok); background:color-mix(in srgb, var(--ok) 11%, var(--surface))} .delta.down{color:var(--bad); background:color-mix(in srgb, var(--bad) 11%, var(--surface))}
+.spark{position:relative; height:56px; margin-top:8px}
+.spark svg{width:100%; height:100%; display:block; overflow:visible}
+.sp-area{fill:var(--accent); fill-opacity:.1} .sp-line{fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
+.sp-hit{position:absolute; width:24px; height:24px; transform:translate(-50%,-50%); display:grid; place-items:center; cursor:default}
+.sp-hit i{width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 2px var(--surface); opacity:0; transition:opacity .12s}
+.sp-hit.end i, .sp-hit.on i{opacity:1}
+.empty-spark{display:flex; align-items:flex-end; font-size:12px; color:var(--muted)}
+.spark .lc-tip, .bars .lc-tip{transform:translate(-50%, calc(-100% - 10px)); pointer-events:none; white-space:nowrap}
+.reach{display:grid; grid-template-columns:minmax(0,220px) minmax(0,1fr); gap:24px; align-items:stretch}
+.reach-side{display:flex; flex-direction:column; gap:14px} .reach-side h3{margin:0}
+.reach-stat{display:flex; flex-direction:column; gap:2px} .reach-n{font-size:24px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.reach-chart{display:flex; flex-direction:column; gap:8px; min-width:0}
+.bars{position:relative; display:flex; gap:2px; align-items:stretch; height:150px}
+.bar-col{flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; min-width:0; cursor:default}
+.bar-track{flex:1; width:100%; max-width:56px; display:flex; align-items:flex-end}
+.bar{width:100%; background:var(--accent); opacity:.28; border-radius:4px 4px 0 0; transition:opacity .12s}
+.bar-col.end .bar, .bar-col.on .bar{opacity:1}
+.bar-m{font-size:11.5px; color:var(--muted)} .bar-col.end .bar-m{color:var(--ink); font-weight:700}
+@media (max-width:900px){ .reach{grid-template-columns:minmax(0,1fr)} .reach-side{flex-direction:row; flex-wrap:wrap; gap:18px} .reach-side h3{width:100%} }
+@media (max-width:520px){ .kt{flex-direction:column !important; align-items:stretch !important} }
+@media (max-width:640px){ .kts{grid-template-columns:minmax(0,1fr)} }
+.week-card{padding:14px}
+.meet-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:var(--surface); border-radius:var(--r); box-shadow:var(--shadow); padding:12px 16px}
+.meet-ic{width:36px; height:36px; border-radius:10px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent)}
+.meet-b{display:flex; flex-direction:column; flex:1; min-width:180px; font-size:13.5px}
+.evt.meet{--c:#4a5a8a; text-decoration:none}
+.face{position:relative; outline:none}
+.face-pop{position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); z-index:5; width:230px; display:none; flex-direction:column; gap:8px; align-items:flex-start;
+  background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-lg); padding:12px; text-align:left}
+.face-pop .row{gap:10px; align-items:center} .face-pop a{color:var(--accent); word-break:break-all}
+.face:hover .face-pop, .face:focus-within .face-pop{display:flex}
+.faces{overflow:visible} .card:has(.faces){overflow:visible}

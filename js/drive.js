@@ -4,7 +4,7 @@ import { S, db, h, icon, isAdmin, registerView, renderMain, safeUrl, toast, dbEr
 
 export const DRIVE = [
   ["Content", [
-    ["photos","FIESTA & FoundHERs event photos","Original photos and videos from every event."],
+    ["photos","FIESTA & FoundHERs event photos & videos","Original photos and video footage from every event."],
     ["production","Content production","Carousels, reels, recaps and interview videos in progress and finished."],
     ["newsletterImages","Newsletter images","Cover and feature images for FIESTA FOCUS and HERald."]]],
   ["Meetings & pitching", [
