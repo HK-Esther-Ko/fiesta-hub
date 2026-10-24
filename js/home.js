@@ -92,9 +92,9 @@ function face(t){
       mail ? h("a",{class:"small", href:"mailto:" + mail}, mail) : null,
       t.id !== S.meId ? h("button",{class:"btn sm", type:"button", onclick:() => openChat(dmThread(S.meId, t.id))},"Message") : null));
 }
-// the next media team meeting, always at the top of Home
+// the media team meeting, at the top of Home only on meeting days
 function meetingBar(){
-  const d = nextMeeting(); if (!d) return null;
+  const d = nextMeeting(); if (!d || d !== today()) return null;
   const c = S.meetCfg, link = safeUrl(c.link), n = daysUntil(d);
   return h("div",{class:"meet-bar"}, h("span",{class:"meet-ic"}, icon("calendar", 18)),
     h("div",{class:"meet-b"}, h("b",{},"Media team meeting"), h("span",{class:"muted"}, `${n === 0 ? "Today" : n === 1 ? "Tomorrow" : fmt(d)}${c.time ? " · " + c.time : ""} · every ${+c.every === 7 ? "week" : +c.every === 28 ? "4 weeks" : "2 weeks"}`)),
