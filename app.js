@@ -51,7 +51,8 @@ function renderNav(){
   document.getElementById("nav").replaceChildren(...NAV.map(navItem));
   document.getElementById("nav-foot").replaceChildren(...(isAdmin() ? [navItem(["access","Access"])] : []));
 }
-setNavHook(() => { openGroups.add(S.view); renderNav(); });
+// leaving a section folds its submenu; only the section you are on stays open
+setNavHook(() => { openGroups.clear(); openGroups.add(S.view); renderNav(); });
 document.getElementById("menu-btn").onclick = () => document.body.classList.toggle("nav-open");
 document.getElementById("nav-scrim").onclick = closeMobileNav;
 function renderHeader(){
