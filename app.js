@@ -1,7 +1,7 @@
 // Entry point: sign-in gate, app shell (menu, top bar, notifications, chat button) and live data.
 import { onUser, signIn, signOutUser, isBootstrapAdmin, getAccess } from "./firebase.js";
 import { S, db, h, icon, avatar, isAdmin, renderMain, setView, setNavHook, onRender, load, save, today, daysUntil, fmtShort, relTime,
-  teamById, nameOf, posts, isDone, ownersFor, isMyTask } from "./js/core.js";
+  teamById, nameOf, posts, isDone, ownersFor, isMyTask, realAdmin, setPreview } from "./js/core.js";
 import "./js/home.js";
 import "./js/calendar.js";
 import "./js/requests.js";
@@ -63,6 +63,10 @@ function renderHeader(){
   const count = n.filter(x => x.sticky || (x.at || "") > seen).length;
   const b = document.getElementById("bell-count"); b.textContent = count; b.hidden = !count;
   renderChatButton();
+  const pv = document.getElementById("preview-bar");
+  pv.hidden = !(realAdmin() && S.preview);
+  if (!pv.hidden) pv.replaceChildren(h("span",{}, h("b",{},"Preview: "), `team member view${me ? " as " + me.name : ""}. Changes you make still save as you.`),
+    h("button",{class:"btn sm", type:"button", onclick:() => setPreview(null)},"Exit preview"));
 }
 document.getElementById("brand").onclick = () => setView("home");
 document.getElementById("me-btn").onclick = () => openProfile(false);
@@ -138,6 +142,7 @@ function linkMe(){
   const viaAccess = S.myAllowed?.teamId && teamById(S.myAllowed.teamId) ? S.myAllowed.teamId : "";
   const viaEmail = S.team.find(t => (t.email || "").toLowerCase() === S.myEmail)?.id || "";
   S.meId = viaAccess || viaEmail || "";
+  if (realAdmin() && S.preview?.as && teamById(S.preview.as)) S.meId = S.preview.as;
 }
 function maybeWelcome(){
   const me = teamById(S.meId);

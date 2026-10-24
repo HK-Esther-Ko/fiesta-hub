@@ -1,6 +1,6 @@
 // Access (admins only): every sign-in email is added here first, already linked to a person and a level.
 // People can't choose or change their own role.
-import { S, h, isAdmin, registerView, teamById, teamSorted, toast, dbErr, openDrawer, closeDrawer, field, input, select } from "./core.js";
+import { S, h, isAdmin, setPreview, registerView, teamById, teamSorted, toast, dbErr, openDrawer, closeDrawer, field, input, select } from "./core.js";
 import { setAccess, removeAccess, importData } from "../firebase.js";
 
 const LEVELS = [["admin","Admin","Edits the calendar, roles, SOPs, analytics and access. Assigns requests."],["member","Team member","Sees everything; manages their own tasks, profile and chat."]];
@@ -13,7 +13,7 @@ function viewAccess(){
   const missing = teamSorted().filter(t => !linked.has(t.id));
   return [
     h("div",{class:"page-h"}, h("div",{}, h("h2",{},"Access"), h("p",{class:"sub"},"Add each person's Google email before they sign in. Their name, role and level are set here, not by them.")),
-      h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:openImport},"Import data"), h("button",{class:"btn primary", type:"button", onclick:() => openAdd()},"+ Add email"))),
+      h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:openPreview},"Preview as team member"), h("button",{class:"btn", type:"button", onclick:openImport},"Import data"), h("button",{class:"btn primary", type:"button", onclick:() => openAdd()},"+ Add email"))),
     h("div",{class:"levels"}, ...LEVELS.map(([, l, d]) => h("div",{class:"card level"}, h("b",{}, l), h("span",{class:"small muted"}, d)))),
     h("div",{class:"card"}, h("div",{class:"acc-row head"}, h("span",{},"Email"), h("span",{},"Person"), h("span",{},"Level"), h("span",{})),
       ...(rows.length ? rows.map(a => {
@@ -41,6 +41,14 @@ function openAdd(teamId){
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){ msg.textContent = "That email doesn't look right."; return; }
       try{ await setAccess(e, {access:lv.value, teamId:who.value}); closeDrawer(); toast(`${e} can sign in now.`); }catch(err){ msg.textContent = dbErr(err); }
     }},"Add"))
+  ]);
+}
+function openPreview(){
+  const who = select("pv-as", [["","Me (as a team member)"], ...teamSorted().filter(t => t.id !== S.meId).map(t => [t.id, t.name])], "");
+  openDrawer("Preview as team member", [
+    h("p",{class:"small muted", style:"margin:0"},"See the site the way a team member does: no admin buttons, read-only calendar. Pick a person to also see their Home, tasks and notifications. Only you see this, in this browser tab."),
+    field("View as", who, true),
+    h("div",{class:"d-actions"}, h("span",{}), h("button",{class:"btn primary", type:"button", onclick:() => setPreview({as:who.value || ""})},"Start preview"))
   ]);
 }
 function openImport(){

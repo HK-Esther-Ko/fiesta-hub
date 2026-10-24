@@ -554,3 +554,6 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 /* menu scrolls on its own, separate from the page */
 .sidebar{overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin}
 .nav-foot{flex:none}
+
+.preview-bar{margin:0 32px 8px; padding:10px 14px; border-radius:12px; background:var(--accent-soft); box-shadow:inset 0 0 0 1.5px var(--accent); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:13.5px}
+@media (max-width:900px){ .preview-bar{margin:0 16px 8px} }

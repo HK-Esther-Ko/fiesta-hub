@@ -12,7 +12,15 @@ export const S = {
   brandOff:new Set(), platformOff:new Set(), teamTab: load("hub.teamTab") || "chart", chartId: load("hub.chart") || "fiesta",
   sopOpen:"", reqFilter:"all", kpiMonth:"", kpiCompare:"", kpiPlatform:"instagram"
 };
-export const isAdmin = () => S.access === "admin";
+// admins can preview the site as a team member (optionally as a specific person); UI only, kept per browser tab
+S.preview = (() => { try{ return JSON.parse(sessionStorage.getItem("hub.preview") || "null"); }catch(e){ return null; } })();
+export const realAdmin = () => S.access === "admin";
+export const isAdmin = () => realAdmin() && !S.preview;
+export function setPreview(p){
+  S.preview = p;
+  try{ p ? sessionStorage.setItem("hub.preview", JSON.stringify(p)) : sessionStorage.removeItem("hub.preview"); }catch(e){}
+  location.reload();
+}
 
 /* ---------- small helpers ---------- */
 export function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
