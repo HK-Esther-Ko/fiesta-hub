@@ -40,9 +40,41 @@ function sopPage(s){
         ds.length ? h("div",{class:"rs-block"}, h("div",{class:"lbl"},"What to hand over"), h("div",{class:"tiles"}, ...ds.map(d => h("div",{class:"tile"},
           h("div",{class:"tile-n"}, d.count == null ? "✓" : d.per ? `${d.count}×` : String(d.count)), h("div",{class:"tile-u"}, d.count == null ? "To do" : d.per ? "Per pitcher" : "Total"), h("div",{class:"tile-t"}, ...newify(d.text)))))) : null,
         how.length ? h("div",{class:"rs-block"}, h("div",{class:"lbl"},"How to do it"), h("ul",{class:"checks"}, ...how.map(l => h("li",{}, ...newify(l))))) : null,
-        lines(r.later).length ? h("details",{class:"rs-block wide"}, h("summary",{}, "Next to measure"), h("ul",{class:"checks"}, ...lines(r.later).map(l => h("li",{}, ...newify(l))))) : null);
+        lines(r.later).length ? h("details",{class:"rs-block wide"}, h("summary",{}, "Next to measure"), h("ul",{class:"checks"}, ...lines(r.later).map(l => h("li",{}, ...newify(l))))) : null,
+        r.guide ? photoGuide(r.guide) : null);
     })
   ];
+}
+// a longer guide attached to a role (the photography guide), in tabs so the role card stays readable
+const GUIDE_TABS = [["shots","Shot list"],["social","For social posts"],["foundhers","FoundHERs"],["quality","Quality & upload"],["after","After upload"]];
+function photoGuide(g){
+  const tab = GUIDE_TABS.some(([k]) => k === S.guideTab) ? S.guideTab : "shots";
+  const list = (items, cls) => h("ul",{class:"checks" + (cls ? " " + cls : "")}, ...(items || []).map(x => h("li",{}, x)));
+  const body = {
+    shots: () => h("div",{class:"pg-grid"}, ...(g.shots || []).map((s, i) => h("div",{class:"pg-card" + (s.priority ? " pg-first" : "")},
+      h("div",{class:"pg-card-h"}, h("span",{class:"pg-num"}, i + 1), h("b",{}, s.title), s.priority ? h("span",{class:"pill new"},"Priority") : null),
+      s.note ? h("p",{class:"small muted"}, s.note) : null, list(s.items), s.tip ? h("p",{class:"pg-tip"}, s.tip) : null))),
+    social: () => h("div",{class:"pg-stack"}, g.socialNote ? h("p",{class:"muted small"}, g.socialNote) : null,
+      ...(g.social || []).map(s => h("div",{class:"pg-row"}, h("div",{class:"pg-row-k"}, h("b",{}, s.content), h("span",{class:"folder-tag"}, s.use)), h("p",{}, s.photo)))),
+    foundhers: () => { const f = g.foundhers || {}; return h("div",{class:"pg-two"},
+      h("div",{class:"pg-card"}, h("b",{},"What to emphasize"), h("p",{class:"small muted"}, f.intro), h("div",{class:"pg-chips"}, ...(f.emphasis || []).map(x => h("span",{class:"pg-chip"}, x)))),
+      h("div",{class:"pg-card"}, h("b",{},"Group discussions"), h("p",{class:"small muted"}, f.discussionNote), list(f.discussion), f.rule ? h("p",{class:"pg-tip"}, f.rule) : null)); },
+    quality: () => { const q = g.quality || {}; return h("div",{class:"pg-stack"}, h("p",{}, q.intro),
+      h("div",{class:"pg-two"},
+        h("div",{class:"pg-card"}, h("b",{},"Don't upload photos that are"), list(q.dont, "nos"), q.dupes ? h("p",{class:"pg-tip"}, q.dupes) : null),
+        h("div",{class:"pg-card"}, h("b",{},"Before uploading, ask"), list(q.ask), q.askNote ? h("p",{class:"pg-tip"}, q.askNote) : null)),
+      h("div",{class:"pg-card"}, h("b",{},"Uploading photos"), h("ol",{class:"pg-steps"}, ...(g.upload || []).map(x => h("li",{}, x))))); },
+    after: () => { const l = g.lens || {}; return h("div",{class:"pg-stack"}, h("p",{}, g.ambassador),
+      h("div",{class:"pg-folders"}, ...(g.folders || []).map(([n, d]) => h("div",{class:"pg-folder"}, h("span",{class:"folder-ic"}, icon("drive", 18)), h("div",{}, h("b",{}, n), h("p",{class:"small muted"}, d))))),
+      h("div",{class:"pg-card"}, h("b",{},"What the social team looks for"), h("p",{class:"small muted"}, l.question), h("div",{class:"pg-chips"}, ...(l.items || []).map(x => h("span",{class:"pg-chip"}, x))),
+        ...(l.quotes || []).map(q => h("blockquote",{class:"pg-quote"}, `“${q}”`)))); }
+  }[tab];
+  return h("section",{class:"rs-block wide pg"},
+    h("div",{class:"pg-head"}, h("div",{}, h("div",{class:"lbl"}, g.date ? "Guide · " + g.date : "Guide"), h("h3",{}, g.title || "Guide")),
+      g.principle ? h("p",{class:"pg-principle"}, g.principle) : null),
+    g.goal ? h("div",{class:"pg-goal"}, h("p",{}, g.goal), h("div",{class:"pg-chips"}, ...(g.feel || []).map(x => h("span",{class:"pg-chip soft"}, x)))) : null,
+    h("div",{class:"tabs"}, ...GUIDE_TABS.map(([k, l]) => h("button",{class:"tab", type:"button", "aria-selected":String(tab === k), onclick:() => { S.guideTab = k; renderMain(); }}, l))),
+    body());
 }
 function viewSops(){ const s = S.sopOpen && visibleSops().find(x => x.id === S.sopOpen); return s ? sopPage(s) : sopList(); }
 
@@ -59,7 +91,8 @@ function openSopEditor(s){
       h("div",{class:"fields"}, field("Name", f.name), field("Folder", f.folder),
         h("div",{class:"field full"}, h("span",{class:"lbl"},"Who does this (leave empty to use the org chart)"), h("div",{class:"owners"}, ...f.who.map(([t, cb]) => h("label",{for:cb.id}, cb, avatar(t, "sm"), t.name)))), field("What it's for", f.purpose, true), field("How to do it", f.how, true), field("Deliverables", f.deliverables, true), field("Next to measure", f.later, true)))),
     h("div",{class:"d-actions"}, msg, h("button",{class:"btn primary", type:"button", onclick:async () => {
-      const roles = rf.map(f => ({name:f.name.value.trim(), folder:f.folder.value.trim(), purpose:f.purpose.value.trim(), how:f.how.value.trim(), deliverables:f.deliverables.value.trim(), later:f.later.value.trim(),
+      // keep fields the form doesn't edit, like an attached guide
+      const roles = rf.map((f, i) => ({...((s.roles || [])[i] || {}), name:f.name.value.trim(), folder:f.folder.value.trim(), purpose:f.purpose.value.trim(), how:f.how.value.trim(), deliverables:f.deliverables.value.trim(), later:f.later.value.trim(),
         personIds:f.who.filter(([, cb]) => cb.checked).map(([t]) => t.id)})).filter(r => r.name);
       try{ await db.collection("sops").doc(s.id).update({title:title.value.trim() || s.title, summary:summary.value.trim(), roles, updatedAt:new Date().toISOString()}); closeDrawer(); toast("SOP saved."); }
       catch(e){ msg.textContent = dbErr(e); }
