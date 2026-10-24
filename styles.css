@@ -550,3 +550,7 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 
 @media (max-width:900px){ .layout{grid-template-columns:minmax(0,1fr)} .kts{grid-template-columns:repeat(3, minmax(0,1fr))} .kt-s{font-size:11px} .grid2,.dl-grid,.kanban,.kpis,.kpis.two,.two-col,.exp,.dash{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:520px){ .kts{grid-template-columns:minmax(0,1fr)} .kt{flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap} .kt-n{font-size:24px} }
+
+/* menu scrolls on its own, separate from the page */
+.sidebar{overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin}
+.nav-foot{flex:none}
