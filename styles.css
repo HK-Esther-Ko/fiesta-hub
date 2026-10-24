@@ -658,3 +658,7 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .drive-all{display:flex; align-items:center; gap:14px; padding:16px 18px; background:var(--accent-soft); box-shadow:none; border:1px solid color-mix(in srgb, var(--accent) 25%, transparent); flex-wrap:wrap}
 .drive-all .folder-ic{background:var(--surface)}
 .drive-all-b{flex:1; min-width:200px} .drive-all-b h3{margin:0} .drive-all-b p{margin:3px 0 0; color:var(--muted); font-size:13.5px}
+/* teammate hover card: stays open while you move onto it (bridge over the gap + a short hide delay) */
+.face-pop{display:flex; visibility:hidden; opacity:0; transition:opacity .12s ease, visibility 0s linear .3s}
+.face-pop::after{content:""; position:absolute; left:0; right:0; top:100%; height:14px}
+.face:hover .face-pop, .face:focus-within .face-pop{display:flex; visibility:visible; opacity:1; transition-delay:0s}
