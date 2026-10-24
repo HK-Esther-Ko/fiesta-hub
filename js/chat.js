@@ -46,9 +46,12 @@ export function updateThreads(){
   document.querySelectorAll("[data-thread]").forEach(el => {
     const t = el.dataset.thread, msgs = S.messages.filter(m => m.thread === t);
     const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    el.replaceChildren(...(msgs.length ? msgs.map(m => { const a = teamById(m.authorId);
-      return h("div",{class:"msg" + (m.authorId === S.meId ? " mine" : "")}, avatar(a, "sm"),
-        h("div",{class:"msg-b"}, h("div",{class:"msg-h"}, h("b",{}, a?.name || "Someone"), h("span",{class:"muted small"}, relTime(m.createdAt))),
+    // chat bubbles: mine on the right, everyone else on the left; back-to-back messages from one person
+    // within 5 minutes skip the repeated name and photo
+    el.replaceChildren(...(msgs.length ? msgs.map((m, i) => { const a = teamById(m.authorId), mine = m.authorId === S.meId, p = msgs[i - 1];
+      const cont = p && p.authorId === m.authorId && Date.parse(m.createdAt) - Date.parse(p.createdAt) < 5 * 60000;
+      return h("div",{class:"msg" + (mine ? " mine" : "") + (cont ? " cont" : "")}, mine ? null : (cont ? h("span") : avatar(a, "sm")),
+        h("div",{class:"msg-b"}, cont ? null : h("div",{class:"msg-h"}, mine ? null : h("b",{}, a?.name || "Someone"), h("span",{class:"muted small"}, relTime(m.createdAt))),
           h("div",{class:"msg-t"}, ...richText(m.text || "")), m.taskId ? requestCard(m.taskId) : null));
     }) : [h("div",{class:"empty"}, "No messages yet.")]));
     if (near) el.scrollTop = el.scrollHeight;

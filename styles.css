@@ -613,3 +613,13 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .face-pop .row{gap:10px; align-items:center} .face-pop a{color:var(--accent); word-break:break-all}
 .face:hover .face-pop, .face:focus-within .face-pop{display:flex}
 .faces{overflow:visible} .card:has(.faces){overflow:visible}
+/* chat bubbles: others left, mine right */
+.msg{grid-template-columns:24px minmax(0,1fr); align-items:end}
+.msg-b{display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:0}
+.msg-t{display:inline-block; max-width:min(78%, 520px); padding:8px 12px; border-radius:14px 14px 14px 4px; background:var(--sunken); line-height:1.45}
+.msg.mine{display:flex; justify-content:flex-end}
+.msg.mine .msg-b{align-items:flex-end; width:100%}
+.msg.mine .msg-t{background:var(--accent-soft); border-radius:14px 14px 4px 14px}
+.msg.cont{margin-top:-6px} .msg.cont .msg-t{border-radius:14px}
+.msg-req{max-width:min(78%, 520px)}
+.msg .msg-t .mention{font-weight:700}
