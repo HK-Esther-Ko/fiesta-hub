@@ -3,20 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FIESTA Media Hub</title>
+<title>FIESTA Media Team</title>
 <link rel="icon" href="assets/fiesta-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="theme.css">
 </head>
 <body>
 
 <div id="gate" class="gate">
   <div class="gate-card">
     <img src="assets/fiesta-logo.png" alt="FIESTA">
-    <h1>FIESTA Media Hub</h1>
+    <h1>FIESTA <span>Media Team</span></h1>
     <p id="gate-msg">Loading…</p>
     <button id="gate-signin" class="btn primary" type="button" hidden>Sign in with Google</button>
     <button id="gate-signout" class="btn ghost" type="button" hidden>Use a different account</button>
@@ -25,26 +24,28 @@
 
 <div id="app" class="layout" hidden>
   <aside class="sidebar">
-    <div class="sb-brand"><img src="assets/fiesta-logo.png" alt=""><span>FIESTA <b>Hub</b></span></div>
-    <nav id="tabs" class="sb-nav" role="tablist" aria-label="Sections"></nav>
-    <div class="sb-foot">
-      <nav id="tabs-foot" class="sb-nav" aria-label="Admin"></nav>
-      <button id="signout" class="nav-item" type="button"><span class="ic" data-icon="logout"></span>Log out</button>
+    <button id="brand" class="brand" type="button" aria-label="Home"><img src="assets/fiesta-logo.png" alt=""><span><b>FIESTA</b> Media Team</span></button>
+    <nav id="nav" class="nav" aria-label="Sections"></nav>
+    <div class="nav-foot">
+      <nav id="nav-foot" class="nav" aria-label="Admin"></nav>
+      <button id="signout" class="nav-item" type="button"><span data-icon="logout"></span>Log out</button>
     </div>
   </aside>
   <div class="content">
     <header class="topbar">
-      <div id="tb-date" class="tb-date"></div>
+      <div class="tb-left"></div>
       <div class="tb-right">
-        <button id="bell" class="icon-btn" type="button" aria-label="Notifications"><span class="ic" data-icon="bell"></span><span id="bell-count" class="dot-badge" hidden>0</span></button>
-        <div class="tb-user">
+        <button id="bell" class="icon-btn" type="button" aria-label="Notifications"><span data-icon="bell"></span><span id="bell-count" class="dot-badge" hidden>0</span></button>
+        <button id="me-btn" class="me-btn" type="button" aria-label="My profile">
           <span id="tb-avatar"></span>
-          <div class="tb-who"><div id="tb-name" class="tb-name"></div><div class="tb-sub"><span id="access-badge"></span> · <span id="who-email"></span></div></div>
-        </div>
+          <span class="tb-who"><span id="tb-name" class="tb-name"></span><span id="tb-sub" class="tb-sub"></span></span>
+        </button>
       </div>
     </header>
     <main id="main"></main>
   </div>
+  <button id="chat-fab" class="chat-fab" type="button" aria-label="Team chat"><span data-icon="chat"></span><span class="dot-badge" hidden>0</span></button>
+  <section id="chat-panel" class="chat-panel" hidden aria-label="Team chat"></section>
   <div id="scrim" hidden></div>
   <aside id="drawer" hidden aria-modal="true" role="dialog"></aside>
   <div id="notif" hidden></div>

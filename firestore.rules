@@ -1,30 +1,48 @@
 rules_version = '2';
-// Paste this into Firebase console → Firestore Database → Rules → Publish.
-// Keep the ADMIN list identical to ADMIN_EMAILS in config.js.
+// Paste into Firebase console → Firestore Database → Rules → Publish.
+// Keep the bootstrap list identical to ADMIN_EMAILS in config.js.
+//
+// Levels (set by admins on the Access page; people can't change their own):
+//   admin  → edits everything: calendar, roles, SOPs, analytics, links, access, and assigns requests
+//   member → reads everything; edits only their own profile (name, photo, contact email),
+//            their own tasks, and chat
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null && request.auth.token.email_verified == true; }
     function email() { return request.auth.token.email.lower(); }
     function bootstrapAdmin() { return signedIn() && email() in ['rhdptmej0102@gmail.com']; }
+    function entry() { return get(/databases/$(database)/documents/allowed/$(email())).data; }
     function listed() { return signedIn() && exists(/databases/$(database)/documents/allowed/$(email())); }
-    function access() { return get(/databases/$(database)/documents/allowed/$(email())).data.get('access', 'member'); }
     function isMember() { return bootstrapAdmin() || listed(); }
-    function isAdmin() { return bootstrapAdmin() || (listed() && access() == 'admin'); }
-    function canContent() { return isAdmin() || (listed() && access() == 'content'); }
+    function isAdmin() { return bootstrapAdmin() || (listed() && entry().get('access', 'member') == 'admin'); }
+    function myTeam() { return listed() ? entry().get('teamId', '') : ''; }
 
-    // Who can sign in, and at what level. Only admins change it.
-    match /allowed/{e} {
-      allow read: if (signedIn() && e == email()) || isMember();
+    // default: everyone on the team reads, only admins write
+    match /{coll}/{rest=**} {
+      allow read: if isMember();
       allow write: if isAdmin();
     }
-    // The content calendar: admins and content managers edit, everyone else reads.
-    match /content/{id} {
-      allow read: if isMember();
-      allow write: if canContent();
+    match /allowed/{e} {
+      allow read: if signedIn() && e == email();
     }
-    // Everything else (tasks, chat, events, SOPs, roles…): any team member.
-    match /{coll}/{rest=**} {
-      allow read, write: if isMember() && !(coll in ['allowed', 'content']);
+    // your own team card: name, photo and contact email only
+    match /team/{id} {
+      allow update: if isMember() && id == myTeam()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photo', 'contactEmail']);
+    }
+    // tasks: anyone adds their own; the owner works on it; admins assign and edit any
+    match /tasks/{id} {
+      allow create: if isMember() && request.resource.data.ownerId == myTeam();
+      allow update: if isMember() && resource.data.ownerId == myTeam() && request.resource.data.ownerId == myTeam();
+      allow delete: if isMember() && resource.data.ownerId == myTeam();
+    }
+    // chat: anyone on the team can post and start group chats
+    match /messages/{id} {
+      allow create: if isMember() && request.resource.data.authorId == myTeam();
+    }
+    match /chats/{id} {
+      allow create: if isMember();
+      allow update: if isMember() && myTeam() in resource.data.members;
     }
   }
 }

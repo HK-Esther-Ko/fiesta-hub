@@ -10,12 +10,14 @@ The FIESTA media team's internal site: content calendar, deadlines, events and r
 
 | File | What it is |
 |---|---|
-| `index.html` | Page shell: sign-in gate, header, menu |
-| `app.js` | All screens and logic |
+| `index.html` | Page shell: sign-in gate, sidebar, top bar, chat button |
+| `app.js` | Entry: sign-in, menu, notifications, live data |
+| `js/core.js` | Shared state, helpers, content rules (owners, statuses, events) |
+| `js/*.js` | One file per page: home, calendar, requests, analytics, team, drive, sops, cycle (How we work), access, chat |
 | `firebase.js` | Firestore/Auth wrapper and access helpers |
 | `config.js` | Firebase project keys and bootstrap admin emails (**edit this**) |
 | `firestore.rules` | Database security rules (**paste into Firebase**) |
-| `styles.css` | Design tokens (FIESTA brand palette) and layout |
+| `styles.css` | Design tokens (orange primary, FIESTA orange / FoundHERs pink) and all layout |
 | `assets/` | Logo |
 
 Not committed (see `.gitignore`): `data-export/` (team data for the first import), `claude-artifact/` (the earlier Claude prototype), `brand/` (source brand files).
@@ -26,9 +28,10 @@ Set per email on the **Access** page (admins only). Enforced by `firestore.rules
 
 | Level | Can do |
 |---|---|
-| Admin | Everything, including the Access page |
-| Content manager | Edit the content calendar, plus everything a team member can do |
-| Team member | View the calendar; manage their own tasks, chat, events, SOPs, roles |
+| Admin | Edit the calendar, roles, SOPs, analytics, links and access; assign requests to anyone |
+| Team member | See everything; edit their own profile (name, photo, contact email), their own tasks, and chat |
+
+Admins add each email on the Access page first, linked to a team card. People can't pick or change their own role.
 
 Only emails on the Access list (or in `ADMIN_EMAILS`) can sign in.
 
