@@ -113,7 +113,24 @@ function showGate(kind, email){
   document.getElementById("gate-msg").textContent = kind === "signin" ? "Sign in with the Google account your admin added."
     : `${email} isn't on the team list yet. Ask an admin to add this email, then reload.`;
 }
-document.getElementById("gate-signin").onclick = () => signIn().catch(e => { if (e?.code !== "auth/popup-closed-by-user") alert("Sign-in didn't finish. Try again."); });
+// Google sign-in can't finish inside app browsers (KakaoTalk, Instagram, LINE, Facebook…): they block the popup
+const inAppBrowser = /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER|DaumApps|wv\)/i.test(navigator.userAgent);
+function showOpenInBrowser(){
+  const msg = document.getElementById("gate-msg");
+  msg.replaceChildren(
+    "This app's built-in browser can't do Google sign-in. Open the link in Safari or Chrome instead.",
+    h("br"), h("button",{class:"btn sm", type:"button", style:"margin-top:10px", onclick:async ev => {
+      try{ await navigator.clipboard.writeText(location.href); ev.target.textContent = "Link copied"; }catch(e){ ev.target.textContent = location.href; } }}, "Copy link"));
+}
+document.getElementById("gate-signin").onclick = () => {
+  if (inAppBrowser){ showOpenInBrowser(); return; }
+  signIn().catch(e => {
+    if (e?.code === "auth/popup-closed-by-user" || e?.code === "auth/cancelled-popup-request") return;
+    if (/missing initial state|storage|popup-blocked|operation-not-supported/i.test((e?.code || "") + " " + (e?.message || ""))){ showOpenInBrowser(); return; }
+    document.getElementById("gate-msg").textContent = "Sign-in didn't finish. Try again.";
+  });
+};
+if (inAppBrowser) setTimeout(showOpenInBrowser, 0);
 document.getElementById("gate-signout").onclick = () => signOutUser();
 
 // who am I: the admin-assigned team card on my Access entry, else a card with my sign-in email
