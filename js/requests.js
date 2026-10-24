@@ -1,7 +1,9 @@
 // Requests: production to-dos and small asks ("newsletter cover image by Nov 3").
 // Admins assign one or more people; everyone else can only add and manage their own.
 import { S, db, h, avatar, isAdmin, registerView, renderMain, daysUntil, fmt, fmtShort, relTime, safeUrl, posts, normItem, brandChip,
-  nameOf, teamById, teamSorted, taskOwners, isMyTask, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea } from "./core.js";
+  nameOf, teamById, teamSorted, taskOwners, isMyTask, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea,
+  emailHook, sendEmail, HUB_URL } from "./core.js";
+import { EMAIL_HOOK } from "../config.js";
 
 export const REQ_COLS = [["todo","To do"],["doing","In progress"],["done","Done"]];
 const PRIORITIES = ["High","Medium","Low"];
@@ -84,6 +86,8 @@ export function openTask(id, preset){
   const link = input("tk-link", t.link, {type:"url", placeholder:"Drive link to references or the finished file"});
   const notes = textarea("tk-notes", t.notes, 3, "Size, format, references, anything they need");
   const msg = h("div",{class:"cmp-status"}), lk = safeUrl(t.link);
+  // without the email hook, admins can still open a pre-filled email to the people they add
+  const mailBox = boxes && !EMAIL_HOOK.url ? h("input",{type:"checkbox", id:"tk-mail", checked:true}) : null;
   if (id && !canEditTask(t)){
     openDrawer("Request", [
       h("div",{class:"row"}, h("span",{class:"pill"}, REQ_COLS.find(([k]) => k === reqStatus(t))[1]), t.priority ? h("span",{class:"prio p-" + t.priority.toLowerCase()}, t.priority) : null, duePill(t)),
@@ -102,7 +106,9 @@ export function openTask(id, preset){
         h("div",{class:"owners"}, ...boxes.map(([m, cb]) => h("label",{for:cb.id}, cb, avatar(m, "sm"), m.name))))
         : h("div",{class:"field full"}, h("span",{class:"lbl"},"Who"), h("div",{class:"owner-fixed"}, ownerNames({ownerIds:current.length ? current : [S.meId]}))),
       field("Due", due), field("Priority", prio), field("Status", st),
-      field("For which post (optional)", post, true), field("Link", link, true), field("Details", notes, true)),
+      field("For which post (optional)", post, true), field("Link", link, true), field("Details", notes, true),
+      mailBox ? h("label",{class:"check-row field full", for:"tk-mail"}, mailBox, h("span",{}, "Also email them", h("br"), h("span",{class:"small muted"},"Opens your mail app with the request filled in")))
+        : boxes ? h("p",{class:"small muted field full", style:"margin:0"},"People you add get an email too.") : null),
     h("div",{class:"d-actions"}, id ? deleteButton(() => db.collection("tasks").doc(id).delete()) : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         const ownerIds = boxes ? boxes.filter(([, cb]) => cb.checked).map(([m]) => m.id) : (current.length ? current : [S.meId]);
@@ -113,8 +119,16 @@ export function openTask(id, preset){
         try{
           if (id) await db.collection("tasks").doc(id).update(data);
           else await db.collection("tasks").add({...data, createdBy:S.meId || "", createdAt:new Date().toISOString()});
-          const to = ownerIds.filter(x => x !== S.meId);
-          closeDrawer(); toast(id ? "Saved." : to.length ? `Sent to ${to.map(nameOf).join(", ")}.` : "Added.");
+          const to = ownerIds.filter(x => x !== S.meId && !(id && current.includes(x)));
+          closeDrawer(); toast(to.length ? `Sent to ${to.map(nameOf).join(", ")}.` : id ? "Saved." : "Added.");
+          if (to.length){
+            const p = S.content.find(c => c.id === data.postId);
+            const subject = `${nameOf(S.meId)} needs: ${data.text}`;
+            const body = [`${nameOf(S.meId)} sent you a request on FIESTA Media Team.`, "", data.text,
+              ...[data.due && "Due: " + fmt(data.due), "Priority: " + data.priority, p && "For: " + p.title, data.link && "Link: " + data.link].filter(Boolean),
+              ...(data.notes ? ["", data.notes] : []), "", "Open it: " + HUB_URL].join("\n");
+            if (!emailHook(EMAIL_HOOK, to, subject, body) && mailBox?.checked) sendEmail(to, subject, body);
+          }
         }catch(e){ msg.textContent = dbErr(e); }
       }}, id ? "Save" : (isAdmin() ? "Send request" : "Add"))), msg
   ]);

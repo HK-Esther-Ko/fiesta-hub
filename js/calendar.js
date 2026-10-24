@@ -83,7 +83,7 @@ function facts(c){
     h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
     h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", "))),
     h("div",{class:"wide"}, h("dt",{},"Content"), h("dd",{style:"white-space:pre-wrap"}, c.notes || "No brief yet.")),
-    h("div",{class:"wide"}, h("dt",{},"Finished file"), h("dd",{}, final ? h("a",{href:final, target:"_blank", rel:"noopener"},"Open finished file ↗") : "Not uploaded yet.")));
+    c.platform === "Newsletter" ? null : h("div",{class:"wide"}, h("dt",{},"Finished file"), h("dd",{}, final ? h("a",{href:final, target:"_blank", rel:"noopener"},"Open finished file ↗") : "Not uploaded yet.")));
 }
 function discussion(c){
   return h("section",{class:"d-thread"}, h("div",{class:"d-sec"}, h("h3",{},"Discussion")), threadList(c.id), composer(c.id));
@@ -111,7 +111,10 @@ export function openItem(id, day){
     driveUrl: input("it-drive", c.driveUrl, {type:"url", placeholder:"Drive folder with raw files and drafts"}),
     finalUrl: input("it-final", c.finalUrl, {type:"url", placeholder:"Drive link to the finished file"})
   };
-  f.platform.onchange = () => { const fm = PLATFORMS[f.platform.value].formats; f.format.replaceChildren(...fm.map(x => h("option",{value:x}, x))); paintOwner(); };
+  // newsletters are sent, not uploaded: no finished file
+  const finalField = field("Finished file", f.finalUrl, true), paintFinal = () => { finalField.hidden = f.platform.value === "Newsletter"; };
+  f.platform.onchange = () => { const fm = PLATFORMS[f.platform.value].formats; f.format.replaceChildren(...fm.map(x => h("option",{value:x}, x))); paintOwner(); paintFinal(); };
+  paintFinal();
   let status = c.status;
   const seg = h("div",{class:"seg status-seg", role:"group", "aria-label":"Progress"}, ...STATUS.map(([k, l]) => h("button",{type:"button", class:"st-" + k, "aria-pressed":String(status === k), onclick:async ev => {
     status = k; seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget)));
@@ -127,12 +130,12 @@ export function openItem(id, day){
       field("Title", f.title, true), field("Brand", f.brand), field("Platform", f.platform), field("Format", f.format),
       id ? field("Goes live", f.publishDate) : null, field(id ? "Time" : "Goes live at", f.time), field("Production deadline", f.deadline),
       h("div",{class:"field full"}, h("span",{class:"lbl"},"Owner"), ownerTxt),
-      field("Content brief & caption", f.notes, true), field("Working folder", f.driveUrl, true), field("Finished file", f.finalUrl, true)),
+      field("Content brief & caption", f.notes, true), field("Working folder", f.driveUrl, true), finalField),
     h("div",{class:"d-actions"}, id ? deleteButton(() => db.collection("content").doc(id).delete()) : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         const title = f.title.value.trim(); if (!title){ msg.textContent = "Give it a title."; return; }
         const data = {title, brand:f.brand.value, platform:f.platform.value, format:f.format.value, publishDate:f.publishDate.value, time:f.time.value.trim(),
-          deadline:f.deadline.value, notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), finalUrl:f.finalUrl.value.trim(), status,
+          deadline:f.deadline.value, notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), finalUrl:f.platform.value === "Newsletter" ? "" : f.finalUrl.value.trim(), status,
           ownerIds:ownersFor({platform:f.platform.value, title, type:c.type}), updatedAt:new Date().toISOString()};
         try{ if (id) await db.collection("content").doc(id).update(data); else await db.collection("content").add({...data, createdAt:data.updatedAt});
           closeDrawer(); toast(id ? "Saved." : "Added to the calendar."); }catch(e){ msg.textContent = dbErr(e); }
@@ -160,7 +163,7 @@ function openOwnItem(id, c){
       h("div",{}, h("dt",{},"Production deadline"), h("dd",{}, c.deadline ? [fmt(c.deadline), " ", deadlinePill(c)] : "Not set")),
       h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
       h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", ")))),
-    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Working folder", drive, true), field("Finished file", final, true)),
+    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Working folder", drive, true), c.platform === "Newsletter" ? null : field("Finished file", final, true)),
     h("div",{class:"d-actions"}, h("span",{class:"small muted"},"Date and deadline are set by an admin."),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         if (realAdmin() && S.preview){ closeDrawer(); toast("Preview: nothing was saved."); return; }

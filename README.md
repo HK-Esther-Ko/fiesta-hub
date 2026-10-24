@@ -60,3 +60,9 @@ Only emails on the Access list (or in `ADMIN_EMAILS`) can sign in.
 - Headshots are resized to 480px and stored on the teammate's record (the free plan has no file storage).
 - FIESTA meetups default to the 3rd Wednesday and FoundHERs to the 1st Tuesday of each month; change on Events → "<series> defaults".
 - Firestore free tier: 50k reads / 20k writes per day, plenty for a team this size.
+
+## Request emails (optional)
+When an admin sends a request, the people on it get an in-app notification. For email too:
+- **No setup:** the request form has "Also email them", which opens the sender's mail app with the request filled in.
+- **Automatic, free:** deploy `tools/email-hook.gs` as a Google Apps Script web app (steps at the top of the file),
+  then put its URL and key in `EMAIL_HOOK` in `config.js`. Mail only ever goes to the addresses listed in the script.

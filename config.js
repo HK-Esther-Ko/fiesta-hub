@@ -15,3 +15,10 @@ export const firebaseConfig = {
 export const ADMIN_EMAILS = [
   "rhdptmej0102@gmail.com"
 ];
+
+// Request emails (optional, free): paste the web app URL from tools/email-hook.gs once it's deployed,
+// and the same key you set in that script. Left empty, the site offers to open a pre-filled email instead.
+export const EMAIL_HOOK = {
+  url: "",
+  key: ""
+};

@@ -235,6 +235,13 @@ export function input(id, value, attrs){ const i = h("input",{type:"text", id, .
 export function select(id, options, value){ const s = h("select",{id}, ...options.map(o => Array.isArray(o) ? h("option",{value:o[0]}, o[1]) : h("option",{value:o}, o))); if (value != null) s.value = value; return s; }
 export function textarea(id, value, rows, ph){ const t = h("textarea",{id, rows:String(rows || 3), placeholder:ph || ""}); t.value = value ?? ""; return t; }
 // mailto: opens the sender's own mail app (no server needed)
+// email without a mail app: posts to the Google Apps Script in tools/email-hook.gs (see config.js)
+export function emailHook(hook, ids, subject, body){
+  const to = ids.map(teamById).map(emailOf).filter(Boolean);
+  if (!hook?.url || !to.length) return false;
+  fetch(hook.url, {method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body:JSON.stringify({key:hook.key, to, subject, body})}).catch(e => console.warn(e));
+  return true;
+}
 export function sendEmail(ids, subject, body){
   const people = ids.map(teamById).filter(Boolean), withMail = people.filter(p => emailOf(p));
   if (!withMail.length) return "No email on file.";
