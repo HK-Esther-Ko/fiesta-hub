@@ -8,7 +8,7 @@ export const HUB_URL = location.origin + location.pathname;
 export const S = {
   team:[], content:[], messages:[], chats:[], sops:[], links:{}, events:[], series:[], tasks:[], kpis:[], allowed:[],
   meetCfg:null, access:null, myEmail:"", myAllowed:null, googleName:"", meId:"",
-  view: load("hub.view") || "home", month: firstOfMonth(new Date()), dbState:"loading",
+  view: tabLoad("hub.view") || "home", month: firstOfMonth(new Date()), dbState:"loading",
   brandOff:new Set(), platformOff:new Set(), teamTab: load("hub.teamTab") || "chart", chartId: "fiesta",
   sopOpen:"", reqFilter:"all", kpiMonth:"", kpiCompare:"", kpiPlatform:"instagram"
 };
@@ -25,6 +25,9 @@ export function setPreview(p){
 /* ---------- small helpers ---------- */
 export function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 export function save(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+// the page you're on lasts only for this tab: a refresh keeps it, coming back to the site starts on Home
+function tabLoad(k){ try{ return sessionStorage.getItem(k); }catch(e){ return null; } }
+function tabSave(k, v){ try{ sessionStorage.setItem(k, v); }catch(e){} }
 export function h(tag, attrs, ...kids){
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})){
@@ -264,4 +267,4 @@ export function renderMain(){
 }
 let navHook = () => {};
 export const setNavHook = fn => { navHook = fn; };
-export function setView(k){ S.view = k; save("hub.view", k); navHook(); renderMain(); window.scrollTo(0, 0); }
+export function setView(k){ S.view = k; tabSave("hub.view", k); navHook(); renderMain(); window.scrollTo(0, 0); }
