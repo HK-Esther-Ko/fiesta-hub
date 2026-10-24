@@ -30,11 +30,21 @@ const curYear = () => years().includes(S.driveYear) ? S.driveYear : Math.max(FIR
 // links saved before years existed count as 2026
 const linkFor = (k, fixed, y) => fixed ? S.links[k] : (S.links[`${k}@${y}`] || (y === FIRST_YEAR ? S.links[k] : ""));
 
+// the whole marketing Drive: a banner above the shortcuts. Admins see an "add link" prompt until it's set
+function allDrive(y){
+  const u = safeUrl(S.links.marketingRoot);
+  if (!u && !isAdmin()) return null;
+  return h("div",{class:"card drive-all"},
+    h("span",{class:"folder-ic"}, icon("drive", 22)),
+    h("div",{class:"drive-all-b"}, h("h3",{},"Full marketing Drive"), h("p",{}, u ? "Everything else lives here. Try the shortcuts below first: they open the exact folder." : "Add the link to the main marketing folder so the team can reach everything else.")),
+    u ? h("a",{class:"btn primary", href:u, target:"_blank", rel:"noopener"},"Open Drive ↗") : h("button",{class:"btn", type:"button", onclick:() => openLinks(y)},"Add link"));
+}
 function viewDrive(){
   const y = curYear();
   return [
     h("div",{class:"page-h"}, h("div",{}, h("h2",{},"Team Drive"), h("p",{class:"sub"},"Shortcuts to the shared Google Drive folders. Upload in Drive; these open the right place.")),
       isAdmin() ? h("button",{class:"btn", type:"button", onclick:() => openLinks(y)},`Edit ${y} links`) : null),
+    allDrive(y),
     h("div",{class:"seg", role:"group", "aria-label":"Year"}, ...years().map(yr => h("button",{type:"button", "aria-pressed":String(yr === y), onclick:() => { S.driveYear = yr; renderMain(); }}, String(yr)))),
     ...DRIVE.map(([group, items]) => h("section",{class:"team-sec"}, h("div",{class:"sec-h"}, h("h3",{}, group), group === "Brand" ? h("span",{class:"muted small"},"Same for every year") : null),
       h("div",{class:"drive-grid"}, ...items.map(([k, title, desc, fixed]) => { const u = safeUrl(linkFor(k, fixed, y));
@@ -42,9 +52,7 @@ function viewDrive(){
           h("span",{class:"folder-ic"}, icon("drive", 22)),
           h("div",{class:"folder-b"}, h("h3",{}, fixed ? title : `${title} · ${y}`), h("p",{}, desc)),
           h("span",{class:"folder-go"}, u ? "Open ↗" : "No link yet"));
-      })))),
-    // the whole marketing Drive is hard to find things in, so it stays a small link under the shortcuts
-    safeUrl(S.links.marketingRoot) ? h("p",{class:"drive-all"}, "Can't find it here? ", h("a",{href:safeUrl(S.links.marketingRoot), target:"_blank", rel:"noopener"},"Open the full marketing Drive ↗")) : null
+      }))))
   ];
 }
 function openLinks(y){
