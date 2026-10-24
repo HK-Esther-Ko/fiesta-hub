@@ -1,7 +1,7 @@
 // Entry point: sign-in gate, app shell (menu, top bar, notifications, chat button) and live data.
 import { onUser, signIn, signOutUser, isBootstrapAdmin, getAccess } from "./firebase.js";
 import { S, db, h, icon, avatar, isAdmin, renderMain, setView, setNavHook, onRender, load, save, today, daysUntil, fmtShort, relTime,
-  teamById, nameOf, posts, isDone, ownersFor } from "./js/core.js";
+  teamById, nameOf, posts, isDone, ownersFor, isMyTask } from "./js/core.js";
 import "./js/home.js";
 import "./js/calendar.js";
 import "./js/requests.js";
@@ -16,19 +16,44 @@ import { openTask } from "./js/requests.js";
 import { openProfile } from "./js/team.js";
 import { updateThreads, renderChatButton, renderChatPanel, openChat, threadTitle, seenKey } from "./js/chat.js";
 
-const NAV = [["home","Home"],["calendar","Calendar"],["requests","Requests"],["analytics","Analytics"],["team","Team"],["drive","Drive"],["sops","SOPs"],["cycle","How we work"]];
+// menu with sub-items that open underneath; each sub-item sets that page's state
+const scrollTo = id => setTimeout(() => document.getElementById(id)?.scrollIntoView({behavior:"smooth", block:"start"}), 60);
+const NAV = [
+  ["home","Home"],
+  ["calendar","Calendar", () => [["cal","Calendar", () => true, () => {}], ["dl","Production deadlines", () => false, () => scrollTo("deadlines")]]],
+  ["requests","Requests", () => [["all","All"],["mine","Mine"],["asked","I asked for"]].map(([k, l]) => [k, l, () => (S.reqFilter || "all") === k, () => { S.reqFilter = k; }])],
+  ["analytics","Analytics", () => [["ig","Instagram", () => true, () => {}]]],
+  ["team","Team", () => [["chart","Event org chart"],["roles","Roles"]].map(([k, l]) => [k, l, () => (S.teamTab === "roles" ? "roles" : "chart") === k, () => { S.teamTab = k; save("hub.teamTab", k); }])],
+  ["drive","Drive"],
+  ["sops","SOPs", () => S.sops.filter(s => !s.hidden).sort((a, b) => (b.main ? 1 : 0) - (a.main ? 1 : 0) || (a.order ?? 9) - (b.order ?? 9))
+    .map(s => [s.id, s.main ? "Media team SOP" : s.title.replace(/:.*$/, ""), () => S.sopOpen === s.id, () => { S.sopOpen = s.id; }])],
+  ["cycle","How we work", () => [["cycle","Monthly cycle","wheel"],["plan","Monthly content plan","plan"],["system","Content system","system"]]
+    .map(([k, l, anchor]) => [k, l, () => false, () => scrollTo("hw-" + anchor)])]
+];
 if (![...NAV.map(([k]) => k), "access"].includes(S.view)) S.view = "home";
+const openGroups = new Set([S.view]);
 
 /* ---------- shell ---------- */
 document.querySelectorAll("[data-icon]").forEach(el => el.replaceWith(icon(el.dataset.icon)));
-function navItem([k, l]){
-  return h("button",{class:"nav-item", type:"button", "aria-current":S.view === k ? "page" : null, onclick:() => { if (k === "sops") S.sopOpen = ""; setView(k); }}, icon(k === "access" ? "access" : k), l);
+const closeMobileNav = () => document.body.classList.remove("nav-open");
+function navItem([k, l, kids]){
+  const children = kids ? kids() : [];
+  const active = S.view === k, open = children.length > 1 && openGroups.has(k);
+  const btn = h("button",{class:"nav-item" + (children.length > 1 ? " has-kids" : "") + (open ? " open" : ""), type:"button", "aria-current":active ? "page" : null,
+    "aria-expanded":children.length > 1 ? String(open) : null,
+    onclick:() => { if (k === "sops") S.sopOpen = ""; if (children.length > 1){ if (active && open) openGroups.delete(k); else openGroups.add(k); } if (!active || !children.length){ setView(k); closeMobileNav(); } else renderNav(); }},
+    icon(k === "access" ? "access" : k), h("span",{class:"nav-l"}, l), children.length > 1 ? h("span",{class:"chev", "aria-hidden":"true"}, "▾") : null);
+  if (!open) return btn;
+  return h("div",{class:"nav-group"}, btn, h("div",{class:"nav-sub"}, ...children.map(([ck, cl, isOn, go]) =>
+    h("button",{class:"nav-subitem", type:"button", "aria-current":active && isOn() ? "true" : null, onclick:() => { go(); setView(k); closeMobileNav(); }}, cl))));
 }
 function renderNav(){
   document.getElementById("nav").replaceChildren(...NAV.map(navItem));
   document.getElementById("nav-foot").replaceChildren(...(isAdmin() ? [navItem(["access","Access"])] : []));
 }
-setNavHook(renderNav);
+setNavHook(() => { openGroups.add(S.view); renderNav(); });
+document.getElementById("menu-btn").onclick = () => document.body.classList.toggle("nav-open");
+document.getElementById("nav-scrim").onclick = closeMobileNav;
 function renderHeader(){
   const me = teamById(S.meId);
   document.getElementById("tb-avatar").replaceChildren(avatar(me || {name:S.myEmail || "?"}, "md"));
@@ -54,14 +79,14 @@ function notifications(){
     const d = daysUntil(c.deadline);
     out.push({sticky:true, tone:d < 0 ? "bad" : "warn", label:d < 0 ? `${-d}d overdue` : d === 0 ? "Due today" : `Due ${fmtShort(c.deadline)}`, text:c.title, go:() => openItem(c.id)});
   }
-  for (const t of S.tasks.filter(t => t.ownerId === S.meId && !t.done && t.due && daysUntil(t.due) <= 2))
+  for (const t of S.tasks.filter(t => isMyTask(t) && !t.done && t.due && daysUntil(t.due) <= 2))
     out.push({sticky:true, tone:daysUntil(t.due) < 0 ? "bad" : "warn", label:daysUntil(t.due) < 0 ? "Request late" : "Request due", text:t.text, go:() => openTask(t.id)});
   for (const m of S.messages.filter(m => m.authorId !== S.meId && ((m.mentions || []).includes(S.meId) || (m.thread.startsWith("dm:") && m.thread.slice(3).split("|").includes(S.meId))))){
     const isDm = m.thread.startsWith("dm:"), post = S.content.find(c => c.id === m.thread);
     out.push({at:m.createdAt, label:isDm ? `${nameOf(m.authorId)} sent you a message` : `${nameOf(m.authorId)} mentioned you` + (post ? ` on “${post.title}”` : ` in ${threadTitle(m.thread)}`), text:m.text,
       go:() => post ? openItem(post.id) : openChat(m.thread)});
   }
-  for (const t of S.tasks.filter(t => t.ownerId === S.meId && !t.done && t.createdBy && t.createdBy !== S.meId))
+  for (const t of S.tasks.filter(t => isMyTask(t) && !t.done && t.createdBy && t.createdBy !== S.meId))
     out.push({at:t.createdAt, label:`New request from ${nameOf(t.createdBy)}`, text:t.text, go:() => openTask(t.id)});
   return out;
 }
@@ -127,7 +152,7 @@ function start(){
     linkMe(); renderHeader(); renderMain();
   }, onErr);
   live("team", "team", () => { linkMe(); maybeWelcome(); });
-  live("content", "content"); live("sops", "sops"); live("events", "events"); live("series", "series"); live("tasks", "tasks"); live("kpis", "kpis"); live("chats", "chats");
+  live("content", "content"); live("sops", "sops", renderNav); live("events", "events"); live("series", "series"); live("tasks", "tasks"); live("kpis", "kpis"); live("chats", "chats");
   db.collection("messages").orderBy("createdAt", "desc").limit(500).onSnapshot(s => {
     S.messages = s.docs.map(d => ({id:d.id, ...d.data()})).reverse(); renderHeader(); updateThreads(); renderChatPanel();
   }, onErr);

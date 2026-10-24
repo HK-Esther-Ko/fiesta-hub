@@ -15,11 +15,12 @@ function sopList(){
     h("div",{class:"page-h"}, h("div",{}, h("h2",{},"SOPs"), h("p",{class:"sub"},"How the media team works. New here? Start with “How we work”, then the main SOP.")),
       h("button",{class:"btn", type:"button", onclick:() => setView("cycle")},"How we work →")),
     st ? h("section",{class:"card strategy"},
-      h("div",{class:"strat-grid"}, ...[["Who we serve", st.serve],["Primary goal", st.primary],["Secondary goal", st.secondary]].map(([l, v]) => h("div",{}, h("div",{class:"lbl"}, l), h("p",{}, v))))) : null,
+      h("div",{class:"strat-grid"}, ...[["Who we serve", st.serve],["Our mission", st.mission],["Primary goal", st.primary],["Secondary goal", st.secondary]].filter(([, v]) => v)
+        .map(([l, v]) => h("div",{class:l === "Our mission" ? "mission" : null}, h("div",{class:"lbl"}, l), h("p",{}, v))))) : null,
     main ? h("button",{class:"card sop-main", type:"button", onclick:() => { S.sopOpen = main.id; renderMain(); }},
       h("span",{class:"sop-ic"}, icon("sops", 26)), h("div",{}, h("div",{class:"lbl"},"Main SOP"), h("h3",{}, main.title), h("p",{class:"muted"}, main.summary || "")), h("span",{class:"folder-go"},"Open →")) : null,
-    subs.length ? h("div",{class:"sop-subs"}, ...subs.map(s => h("button",{class:"card sop-sub", type:"button", onclick:() => { S.sopOpen = s.id; renderMain(); }},
-      h("h3",{}, s.title), h("p",{class:"muted small"}, s.summary || ""), h("span",{class:"folder-go"},"Open →")))) : null
+    ...subs.map(s => h("button",{class:"card sop-main sub", type:"button", onclick:() => { S.sopOpen = s.id; renderMain(); }},
+      h("span",{class:"sop-ic"}, icon("sops", 24)), h("div",{}, h("div",{class:"lbl"}, s.category || "SOP"), h("h3",{}, s.title), h("p",{class:"muted"}, s.summary || "")), h("span",{class:"folder-go"},"Open →")))
   ];
 }
 function sopPage(s){

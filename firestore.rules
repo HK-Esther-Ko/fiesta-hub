@@ -30,11 +30,12 @@ service cloud.firestore {
       allow update: if isMember() && id == myTeam()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photo', 'contactEmail']);
     }
-    // tasks: anyone adds their own; the owner works on it; admins assign and edit any
+    // tasks: anyone adds their own; the people on it work on it; admins assign (one or more people) and edit any
+    function owners(d) { return d.get('ownerIds', [d.get('ownerId', '')]); }
     match /tasks/{id} {
-      allow create: if isMember() && request.resource.data.ownerId == myTeam();
-      allow update: if isMember() && resource.data.ownerId == myTeam() && request.resource.data.ownerId == myTeam();
-      allow delete: if isMember() && resource.data.ownerId == myTeam();
+      allow create: if isMember() && owners(request.resource.data) == [myTeam()];
+      allow update: if isMember() && myTeam() in owners(resource.data) && owners(request.resource.data) == owners(resource.data);
+      allow delete: if isMember() && owners(resource.data) == [myTeam()];
     }
     // chat: anyone on the team can post and start group chats
     match /messages/{id} {

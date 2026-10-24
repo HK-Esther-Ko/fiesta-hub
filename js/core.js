@@ -97,6 +97,9 @@ export const teamById = id => S.team.find(t => t.id === id);
 export const nameOf = id => teamById(id)?.name || "Someone";
 export const firstName = id => (nameOf(id).split(/\s+/)[0]);
 export const emailOf = t => t?.contactEmail || t?.email || "";
+// tasks can have several people on them (ownerIds); older ones have a single ownerId
+export const taskOwners = t => t?.ownerIds?.length ? t.ownerIds : (t?.ownerId ? [t.ownerId] : []);
+export const isMyTask = t => taskOwners(t).includes(S.meId);
 function hue(str){ let x = 0; for (const ch of str || "?") x = (x * 31 + ch.charCodeAt(0)) % 360; return x; }
 export const initials = n => String(n || "?").split(/\s+/).map(p => p[0]).join("").slice(0, 2).toUpperCase();
 export function avatar(t, size){
