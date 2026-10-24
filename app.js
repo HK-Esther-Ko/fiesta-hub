@@ -127,6 +127,11 @@ function showOpenInBrowser(){
       try{ await navigator.clipboard.writeText(location.href); ev.target.textContent = "Link copied"; }catch(e){ ev.target.textContent = location.href; } }}, "Copy link"));
 }
 document.getElementById("gate-signin").onclick = () => {
+  if (realAdmin() && S.preview?.first){
+    keepPreview({first:false}); document.getElementById("gate-pv").hidden = true;
+    document.getElementById("gate").hidden = true; document.getElementById("app").hidden = false;
+    if (!started){ started = true; start(); } return;
+  }
   if (inAppBrowser){ showOpenInBrowser(); return; }
   signIn().catch(e => {
     if (e?.code === "auth/popup-closed-by-user" || e?.code === "auth/cancelled-popup-request") return;
@@ -146,6 +151,7 @@ function linkMe(){
 }
 function maybeWelcome(){
   const me = teamById(S.meId);
+  if (realAdmin() && S.preview?.welcome){ if (me){ keepPreview({welcome:false}); openProfile(true); } return; }
   if (!me || load("hub.onboarded." + S.myEmail) || S.welcomed) return;
   S.welcomed = true;
   if (!me.photo || !me.contactEmail) openProfile(true); else save("hub.onboarded." + S.myEmail, "1");
@@ -157,9 +163,12 @@ onUser(async user => {
   S.myEmail = (user.email || "").toLowerCase(); S.googleName = user.displayName || "";
   S.access = isBootstrapAdmin(S.myEmail) ? "admin" : (await getAccess(S.myEmail) ? (await getAccess(S.myEmail) === "admin" ? "admin" : "member") : null);
   if (!S.access){ showGate("denied", user.email); return; }
+  // preview of a teammate's first visit: show the sign-in screen; its button just continues
+  if (realAdmin() && S.preview?.first){ showGate("signin"); document.getElementById("gate-pv").hidden = false; return; }
   document.getElementById("gate").hidden = true; document.getElementById("app").hidden = false;
   if (!started){ started = true; start(); }
 });
+function keepPreview(p){ S.preview = {...S.preview, ...p}; try{ sessionStorage.setItem("hub.preview", JSON.stringify(S.preview)); }catch(e){} }
 
 function start(){
   renderNav(); renderHeader(); renderMain();

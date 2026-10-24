@@ -9,7 +9,7 @@ export const S = {
   team:[], content:[], messages:[], chats:[], sops:[], links:{}, events:[], series:[], tasks:[], kpis:[], allowed:[],
   meetCfg:null, access:null, myEmail:"", myAllowed:null, googleName:"", meId:"",
   view: load("hub.view") || "home", month: firstOfMonth(new Date()), dbState:"loading",
-  brandOff:new Set(), platformOff:new Set(), teamTab: load("hub.teamTab") || "chart", chartId: load("hub.chart") || "fiesta",
+  brandOff:new Set(), platformOff:new Set(), teamTab: load("hub.teamTab") || "chart", chartId: "fiesta",
   sopOpen:"", reqFilter:"all", kpiMonth:"", kpiCompare:"", kpiPlatform:"instagram"
 };
 // admins can preview the site as a team member (optionally as a specific person); UI only, kept per browser tab

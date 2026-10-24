@@ -236,6 +236,10 @@ details.fold[open] > summary{border-bottom:1px solid var(--line)}
 .day{min-height:118px; padding:6px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); min-width:0}
 .day:nth-child(7n){border-right:0}
 .day.out{background:var(--sunken)} .day.out .dnum{opacity:.4}
+.d-top{display:flex; align-items:center; justify-content:space-between}
+.d-add{width:22px; height:22px; border-radius:7px; border:0; background:transparent; color:var(--muted); font-size:16px; line-height:1; cursor:pointer; opacity:0}
+.day:hover .d-add, .d-add:focus-visible{opacity:1} .d-add:hover{background:var(--accent-soft); color:var(--accent)}
+@media (hover:none){ .d-add{opacity:.55} }
 .dnum{font-size:12px; font-weight:700; color:var(--muted); padding:0 2px 2px}
 .day.today .dnum{color:var(--accent-ink); background:var(--accent); border-radius:999px; padding:1px 7px; align-self:flex-start}
 .evt{font-size:11.5px; font-weight:700; padding:3px 6px; border-radius:6px; background:var(--c); color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -510,17 +514,16 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .wheel{position:relative; width:min(520px, 100%); aspect-ratio:1; margin:0 auto}
 .wheel-ring{position:absolute; inset:0}
 .wheel-ring svg{width:100%; height:100%; display:block}
-.w-circle{fill:none; stroke:var(--line); stroke-width:.6; stroke-dasharray:1.4 1.4}
-.w-arrow{fill:none; stroke:var(--accent); stroke-width:.6; stroke-linecap:round; stroke-linejoin:round}
-.w-node{position:absolute; transform:translate(-50%,-50%); width:23%; min-height:58px; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:8px 8px; cursor:pointer;
-  display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center; box-shadow:var(--shadow)}
-.w-node:hover{border-color:var(--accent)}
-.w-node.on{background:var(--accent); border-color:var(--accent); color:#fff}
-.w-node.on .w-k{color:#fff}
-.w-node.t0:not(.on){border-color:var(--accent)}
-.w-k{font-family:var(--f-mono); font-size:11px; color:var(--accent)}
-.w-t{font-size:12px; font-weight:700; line-height:1.25}
-.w-center{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center; display:flex; flex-direction:column; gap:2px}
+.w-slice{cursor:pointer; outline:none}
+.w-slice path{fill:var(--accent); fill-opacity:.12; stroke:var(--surface); stroke-width:.9; stroke-linejoin:round; transition:fill-opacity .15s}
+.w-slice.t0 path{fill-opacity:.24}
+.w-slice:hover path, .w-slice:focus-visible path{fill-opacity:.32}
+.w-slice.on path{fill-opacity:1}
+.w-slice text{font-size:2.9px; font-weight:700; fill:var(--ink); pointer-events:none}
+.w-slice .w-sk{font-family:var(--f-mono); font-size:2.5px; fill:var(--accent)}
+.w-slice.on text, .w-slice.on .w-sk{fill:#fff}
+.w-center{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:50%; aspect-ratio:1; border-radius:50%; background:var(--surface); box-shadow:var(--shadow);
+  text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px}
 .w-center b{font-size:22px; color:var(--accent)}
 .w-detail{display:flex; flex-direction:column; gap:10px; background:var(--sunken); border-radius:14px; padding:18px}
 .w-detail .stage-media{margin-top:4px}
@@ -540,7 +543,7 @@ main > .seg, .page-h + .seg{align-self:flex-start}
   .topbar{position:sticky; top:0; padding:10px 16px}
   .kts{grid-template-columns:1fr 1fr 1fr; gap:8px} .kt{padding:12px} .kt-n{font-size:22px} .kt-l{font-size:11.5px}
   .wheel-wrap{grid-template-columns:1fr}
-  .w-node{width:27%; min-height:48px; padding:5px} .w-t{font-size:10.5px} .w-k{font-size:9.5px}
+  .w-slice text{font-size:3.3px} .w-slice .w-sk{font-size:2.9px} .w-center b{font-size:18px} .w-center span{font-size:11px}
   .chat-panel{left:8px; right:8px; width:auto; bottom:80px; height:calc(100vh - 150px)}
   #drawer{width:100%; border-radius:0}
   .cal{min-width:640px}
@@ -557,3 +560,7 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 
 .preview-bar{margin:0 32px 8px; padding:10px 14px; border-radius:12px; background:var(--accent-soft); box-shadow:inset 0 0 0 1.5px var(--accent); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; font-size:13.5px}
 @media (max-width:900px){ .preview-bar{margin:0 16px 8px} }
+
+.gate-pv{margin:14px 0 0; padding:10px 12px; border-radius:10px; background:var(--accent-soft); color:var(--ink); font-size:13px; text-align:left}
+.check-row{display:flex; gap:10px; align-items:flex-start; cursor:pointer}
+.check-row input{margin-top:3px; accent-color:var(--accent)}

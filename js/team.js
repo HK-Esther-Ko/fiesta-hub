@@ -1,5 +1,5 @@
 // Team: event org charts (fixed roles per series) and the people page, under one menu item.
-import { S, db, h, icon, avatar, isAdmin, registerView, renderMain, save, lines, teamById, teamSorted, nameOf, byPeopleOrder, BRANDS, seriesById,
+import { S, db, h, icon, avatar, isAdmin, realAdmin, registerView, renderMain, save, lines, teamById, teamSorted, nameOf, byPeopleOrder, BRANDS, seriesById,
   toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, resizeImage, blobToDataUrl } from "./core.js";
 import { setAccess } from "../firebase.js";
 
@@ -23,7 +23,7 @@ function orgChart(){
   const areas = AREAS.map(([a, label]) => [label, groupRoles((cur.roles || []).filter(r => r.area === a))]).filter(([, l]) => l.length);
   return [
     h("div",{class:"spread"},
-      h("div",{class:"seg", role:"group", "aria-label":"Event"}, ...series.map(s => h("button",{type:"button", "aria-pressed":String(s.id === cur.id), onclick:() => { S.chartId = s.id; save("hub.chart", s.id); renderMain(); }}, s.name))),
+      h("div",{class:"seg", role:"group", "aria-label":"Event"}, ...series.map(s => h("button",{type:"button", "aria-pressed":String(s.id === cur.id), onclick:() => { S.chartId = s.id; renderMain(); }}, s.name))),
       isAdmin() ? h("button",{class:"btn", type:"button", onclick:() => openRoles(cur)},"Edit roles") : null),
     h("section",{class:"card oc", style:`--c:${(BRANDS[cur.brand] || {}).c || "var(--accent)"}`},
       h("div",{class:"oc-root"}, cur.name),
@@ -126,15 +126,18 @@ export function openProfile(first){
   if (!t){ toast("Your account isn't linked to a team card yet. Ask an admin."); return; }
   const name = input("pf-name", t.name || S.googleName), mail = input("pf-mail", t.contactEmail || t.email || S.myEmail, {type:"email"});
   const ph = photoPicker(t.photo), msg = h("div",{class:"cmp-status"});
+  const pv = realAdmin() && S.preview;
+  if (pv) mail.value = t.contactEmail || t.email || "";
   openDrawer(first ? "Welcome to FIESTA Media Team" : "My profile", [
     first ? h("p",{style:"margin:0"},"Add your name and a photo so teammates know who's who.") : null,
     ph.el,
     h("div",{class:"fields"}, field("Name", name, true), field("Contact email", mail, true)),
-    h("dl",{class:"facts"}, h("div",{}, h("dt",{},"Title"), h("dd",{}, t.role || "—")), h("div",{}, h("dt",{},"Signed in as"), h("dd",{}, S.myEmail))),
+    h("dl",{class:"facts"}, h("div",{}, h("dt",{},"Title"), h("dd",{}, t.role || "—")), h("div",{}, h("dt",{},"Signed in as"), h("dd",{}, pv ? t.email || "their Google email" : S.myEmail))),
     h("p",{class:"small muted", style:"margin:0"},"Your title and role are set by an admin."),
     h("div",{class:"d-actions"}, first ? h("button",{class:"btn ghost", type:"button", onclick:closeDrawer},"Later") : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         const n = name.value.trim(); if (!n){ msg.textContent = "Add your name."; return; }
+        if (pv){ closeDrawer(); toast("Preview: nothing was saved."); return; }
         try{ await db.collection("team").doc(t.id).update({name:n, photo:ph.get(), contactEmail:mail.value.trim()}); closeDrawer(); toast(first ? `Welcome, ${n.split(" ")[0]}!` : "Profile saved."); save("hub.onboarded." + S.myEmail, "1"); }
         catch(e){ msg.textContent = dbErr(e); }
       }},"Save")), msg

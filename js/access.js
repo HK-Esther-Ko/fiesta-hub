@@ -45,10 +45,12 @@ function openAdd(teamId){
 }
 function openPreview(){
   const who = select("pv-as", [["","Me (as a team member)"], ...teamSorted().filter(t => t.id !== S.meId).map(t => [t.id, t.name])], "");
+  const first = h("input",{type:"checkbox", id:"pv-first", checked:true});
   openDrawer("Preview as team member", [
     h("p",{class:"small muted", style:"margin:0"},"See the site the way a team member does: no admin buttons, read-only calendar. Pick a person to also see their Home, tasks and notifications. Only you see this, in this browser tab."),
     field("View as", who, true),
-    h("div",{class:"d-actions"}, h("span",{}), h("button",{class:"btn primary", type:"button", onclick:() => setPreview({as:who.value || ""})},"Start preview"))
+    h("label",{class:"check-row"}, first, h("span",{}, h("b",{},"Start from their first visit"), h("br"), h("span",{class:"small muted"},"The sign-in screen, then the welcome step where they add their name and photo. Nothing gets saved."))),
+    h("div",{class:"d-actions"}, h("span",{}), h("button",{class:"btn primary", type:"button", onclick:() => setPreview({as:who.value || "", first:first.checked, welcome:first.checked})},"Start preview"))
   ]);
 }
 function openImport(){

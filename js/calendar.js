@@ -33,7 +33,8 @@ function viewCalendar(){
   for (let i = 0; i < weeks * 7; i++){
     const d = addDays(start, i), key = ymd(d);
     cells.push(h("div",{class:"day" + (d.getMonth() !== mo ? " out" : "") + (key === today() ? " today" : "")},
-      h("span",{class:"dnum"}, d.getDate()),
+      h("div",{class:"d-top"}, h("span",{class:"dnum"}, d.getDate()),
+        isAdmin() ? h("button",{class:"d-add", type:"button", "aria-label":`Add a post on ${fmt(key)}`, title:"Add a post on this day", onclick:() => openItem(null, key)},"+") : null),
       ...(evDay[key] || []).map(e => h("div",{class:"evt", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, h("span",{class:"evt-k"},"Event"), e.name)),
       ...(byDay[key] || []).map(chip)));
   }
@@ -46,7 +47,7 @@ function viewCalendar(){
           h("button",{type:"button", "aria-label":"Previous month", onclick:() => { S.month = new Date(y, mo - 1, 1); renderMain(); }},"‹"),
           h("button",{type:"button", onclick:() => { S.month = firstOfMonth(new Date()); renderMain(); }},"Today"),
           h("button",{type:"button", "aria-label":"Next month", onclick:() => { S.month = new Date(y, mo + 1, 1); renderMain(); }},"›"))),
-      isAdmin() ? h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:openPlanner},"Plan a month"), h("button",{class:"btn primary", type:"button", onclick:() => openItem(null)},"+ New post")) : null),
+      isAdmin() ? h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:openPlanner},"Plan a month"), h("span",{class:"muted small"},"To add a post, click + on its day")) : null),
     filters(),
     h("div",{class:"st-sum"}, ...STATUS.map(([k, l]) => h("span",{class:"st st-" + k}, h("i",{}), `${l} · ${inMonth.filter(c => c.status === k).length}`)),
       late ? h("span",{class:"st late"}, h("i",{}), `${late} past date, not published`) : null),
@@ -87,10 +88,10 @@ function facts(c){
 function discussion(c){
   return h("section",{class:"d-thread"}, h("div",{class:"d-sec"}, h("h3",{},"Discussion")), threadList(c.id), composer(c.id));
 }
-export function openItem(id){
+export function openItem(id, day){
   const raw = id ? S.content.find(x => x.id === id) : null;
   if (id && !raw) return;
-  const c = raw ? normItem(raw) : {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo"};
+  const c = raw ? normItem(raw) : {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo", publishDate:day || ""};
   if (!isAdmin()){
     const drive = safeUrl(c.driveUrl);
     openDrawer(c.title, [h("div",{class:"row"}, brandChip(c.brand), statusPill(c.status)), facts(c),
@@ -119,11 +120,11 @@ export function openItem(id){
   const paintOwner = () => { ownerTxt.textContent = ownersFor({platform:f.platform.value, title:f.title.value, type:c.type}).map(nameOf).join(", ") + "  ·  set automatically"; };
   f.title.addEventListener("input", paintOwner); paintOwner();
   const msg = h("div",{class:"cmp-status"});
-  openDrawer(id ? "Edit post" : "New post", [
+  openDrawer(id ? "Edit post" : `New post · ${fmt(c.publishDate)}`, [
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("div",{class:"fields"},
       field("Title", f.title, true), field("Brand", f.brand), field("Platform", f.platform), field("Format", f.format),
-      field("Goes live (date)", f.publishDate), field("Time", f.time), field("Production deadline", f.deadline),
+      id ? field("Goes live", f.publishDate) : null, field(id ? "Time" : "Goes live at", f.time), field("Production deadline", f.deadline),
       h("div",{class:"field full"}, h("span",{class:"lbl"},"Owner"), ownerTxt),
       field("Content brief & caption", f.notes, true), field("Working folder", f.driveUrl, true), field("Finished file", f.finalUrl, true)),
     h("div",{class:"d-actions"}, id ? deleteButton(() => db.collection("content").doc(id).delete()) : h("span",{}),

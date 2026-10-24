@@ -30,20 +30,31 @@ const BUCKETS = [["Event operations","venue, supplies, food, AV, signage"],["Fou
   ["Registration & data","Luma, EventMagic, attendee data"],["Media","photos, video, asset organization",1],["Social media","calendar, posts, engagement",1],
   ["Newsletter","FIESTA FOCUS, founder wins, recap",1],["Community","introductions, follow-up, partners"],["Leadership","approvals, calendar, metrics, finances"]];
 
-// the cycle as a wheel: eight stages around FIESTA night; click a stage to read it
+// short two-line labels for the wheel slices, same order as STAGES
+const SLICE = [["Close out","the event"],["Capture","what happened"],["Open the","next cycle"],["Publish","the story"],["Run the","pipelines"],["Build","the event"],["Lock","everything"],["Confirm","and pack"]];
+// the cycle as a donut of arrow-shaped slices, clockwise from FIESTA night; click a slice to read it
 function wheel(){
   const sel = Number.isInteger(S.cycleStage) ? S.cycleStage : 0, n = STAGES.length;
-  const pos = i => { const a = (-90 + i * 360 / n) * Math.PI / 180; return [50 + 40 * Math.cos(a), 50 + 40 * Math.sin(a)]; };
+  const R = 48, r = 28, mid = (R + r) / 2, step = 360 / n, tip = 4;
+  const pt = (deg, rad) => { const a = (deg - 90) * Math.PI / 180; return `${(50 + rad * Math.cos(a)).toFixed(2)} ${(50 + rad * Math.sin(a)).toFixed(2)}`; };
+  const slices = STAGES.map(([k], i) => {
+    const a0 = i * step, a1 = a0 + step;
+    // pointed end, notched start: each slice tucks into the next one
+    const d = `M${pt(a0, R)} A${R} ${R} 0 0 1 ${pt(a1, R)} L${pt(a1 + tip, mid)} L${pt(a1, r)} A${r} ${r} 0 0 0 ${pt(a0, r)} L${pt(a0 + tip, mid)} Z`;
+    const am = (a0 + a1) / 2 + tip / 2, [cx, cy] = pt(am, mid).split(" ");
+    return `<g class="w-slice${i === sel ? " on" : ""}${k === "T" ? " t0" : ""}" data-i="${i}" role="button" tabindex="0" aria-pressed="${i === sel}" aria-label="${STAGES[i][2]}">
+      <path d="${d}"/><text x="${cx}" y="${cy}" text-anchor="middle"><tspan class="w-sk" x="${cx}" dy="-3.2">${k}</tspan><tspan x="${cx}" dy="3.6">${SLICE[i][0]}</tspan><tspan x="${cx}" dy="3.2">${SLICE[i][1]}</tspan></text></g>`;
+  }).join("");
   const ring = h("div",{class:"wheel-ring"});
-  const arrows = [...Array(n)].map((_, i) => { const a = (-90 + (i + .5) * 360 / n); return `<g transform="rotate(${a} 50 50) translate(90 50)"><path d="M-1.6 -1.4 L0.6 0 L-1.6 1.4" class="w-arrow"/></g>`; }).join("");
-  ring.innerHTML = `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" class="w-circle"/>${arrows}</svg>`;
-  const nodes = STAGES.map(([k, when, title], i) => { const [x, y] = pos(i);
-    return h("button",{class:"w-node" + (i === sel ? " on" : "") + (k === "T" ? " t0" : ""), type:"button", style:`left:${x}%; top:${y}%`, "aria-pressed":String(i === sel),
-      onclick:() => { S.cycleStage = i; renderMain(); setTimeout(() => document.getElementById("hw-wheel")?.scrollIntoView({block:"nearest"}), 0); }},
-      h("span",{class:"w-k"}, k), h("span",{class:"w-t"}, title)); });
+  ring.innerHTML = `<svg viewBox="0 0 100 100">${slices}</svg>`;
+  const pick = i => { S.cycleStage = i; renderMain(); setTimeout(() => document.getElementById("hw-wheel")?.scrollIntoView({block:"nearest"}), 0); };
+  ring.querySelectorAll(".w-slice").forEach(g => {
+    g.addEventListener("click", () => pick(Number(g.dataset.i)));
+    g.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); pick(Number(g.dataset.i)); } });
+  });
   const [k, when, title, items, media] = STAGES[sel];
   return h("div",{class:"wheel-wrap"},
-    h("div",{class:"wheel"}, ring, h("div",{class:"w-center"}, h("b",{},"FIESTA"), h("span",{},"3rd Tuesday"), h("span",{class:"muted small"},"then it starts again")), ...nodes),
+    h("div",{class:"wheel"}, ring, h("div",{class:"w-center"}, h("b",{},"FIESTA"), h("span",{},"3rd Tuesday"), h("span",{class:"muted small"},"then it starts again"))),
     h("div",{class:"w-detail"},
       h("div",{class:"stage-t"}, h("span",{class:"stage-k"}, k), h("span",{class:"muted small"}, when)),
       h("h3",{}, title),
