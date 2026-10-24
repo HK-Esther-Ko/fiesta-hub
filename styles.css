@@ -662,3 +662,15 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .face-pop{display:flex; visibility:hidden; opacity:0; transition:opacity .12s ease, visibility 0s linear .3s}
 .face-pop::after{content:""; position:absolute; left:0; right:0; top:100%; height:14px}
 .face:hover .face-pop, .face:focus-within .face-pop{display:flex; visibility:visible; opacity:1; transition-delay:0s}
+/* SOP strategy: mission banner + icon cards */
+.strategy{padding:0; display:flex; flex-direction:column; gap:12px}
+.strat-mission{display:flex; gap:16px; align-items:center; background:var(--accent); color:#fff; border-radius:var(--r); padding:20px 22px}
+.strat-mission .lbl{color:rgba(255,255,255,.8)}
+.strat-mission p{margin:4px 0 0; font-size:19px; font-weight:800; line-height:1.35; letter-spacing:-.01em}
+.strat-mission .strat-ic{background:rgba(255,255,255,.18); color:#fff; width:48px; height:48px}
+.strat-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px}
+.strat-card{padding:16px 18px; display:flex; flex-direction:column; gap:6px}
+.strat-card p{margin:0; font-weight:700; font-size:15.5px; line-height:1.4}
+.strat-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px}
+.strat-ic{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); flex:none}
+.strat-n{font-size:12px; font-weight:800; color:var(--muted); background:var(--sunken); border-radius:999px; padding:2px 9px}

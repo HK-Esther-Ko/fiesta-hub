@@ -14,9 +14,12 @@ function sopList(){
   return [
     h("div",{class:"page-h"}, h("div",{}, h("h2",{},"SOPs"), h("p",{class:"sub"},"How the media team works. New here? Start with “How we work”, then the main SOP.")),
       h("button",{class:"btn", type:"button", onclick:() => setView("cycle")},"How we work →")),
-    st ? h("section",{class:"card strategy"},
-      h("div",{class:"strat-grid"}, ...[["Who we serve", st.serve],["Our mission", st.mission],["Primary goal", st.primary],["Secondary goal", st.secondary]].filter(([, v]) => v)
-        .map(([l, v]) => h("div",{class:l === "Our mission" ? "mission" : null}, h("div",{class:"lbl"}, l), h("p",{}, v))))) : null,
+    // strategy: the mission as a banner, then who we serve and the two goals as icon cards
+    st ? h("section",{class:"strategy"},
+      st.mission ? h("div",{class:"strat-mission"}, h("span",{class:"strat-ic"}, icon("compass", 24)), h("div",{}, h("div",{class:"lbl"},"Our mission"), h("p",{}, st.mission))) : null,
+      h("div",{class:"strat-grid"}, ...[["team","Who we serve", st.serve, ""],["target","Primary goal", st.primary, "1"],["dollar","Secondary goal", st.secondary, "2"]].filter(([, , v]) => v)
+        .map(([ic, l, v, n]) => h("div",{class:"card strat-card"}, h("div",{class:"strat-top"}, h("span",{class:"strat-ic"}, icon(ic, 20)), n ? h("span",{class:"strat-n"}, n) : null),
+          h("div",{class:"lbl"}, l), h("p",{}, v))))) : null,
     main ? h("button",{class:"card sop-main", type:"button", onclick:() => { S.sopOpen = main.id; renderMain(); }},
       h("span",{class:"sop-ic"}, icon("sops", 26)), h("div",{}, h("div",{class:"lbl"},"Main SOP"), h("h3",{}, main.title), h("p",{class:"muted"}, main.summary || "")), h("span",{class:"folder-go"},"Open →")) : null,
     ...subs.map(s => h("button",{class:"card sop-main sub", type:"button", onclick:() => { S.sopOpen = s.id; renderMain(); }},
