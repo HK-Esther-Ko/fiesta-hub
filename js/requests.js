@@ -49,7 +49,9 @@ function reqCard(t){
 // one row per person, top to bottom: a long progress bar of their extra asks, with the open ones listed under it
 function peopleBoard(list){
   const since = ymd(addDays(parse(today()), -30)), byPrio = (a, b) => PRIORITIES.indexOf(a.priority || "Medium") - PRIORITIES.indexOf(b.priority || "Medium") || byDue(a, b);
-  const people = teamSorted().filter(p => p.group === "media" || list.some(t => taskOwners(t).includes(p.id)));
+  // people with the most open asks rise to the top; ties keep the usual team order
+  const openOf = p => list.filter(t => !t.done && taskOwners(t).includes(p.id)).length;
+  const people = teamSorted().filter(p => p.group === "media" || list.some(t => taskOwners(t).includes(p.id))).sort((a, b) => openOf(b) - openOf(a));
   if (!people.length) return h("div",{class:"card empty"},"No one on the team yet.");
   const key = (k, l) => h("span",{class:"st"}, h("i",{class:"kdot k-" + k}), l);
   return h("section",{class:"card pl"},
