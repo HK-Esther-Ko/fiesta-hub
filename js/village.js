@@ -1,7 +1,9 @@
 // FIESTA village (experimental): everyone as a little pixel character on Home, dressed up from their profile.
 // To take it out: delete this file, its imports in home.js and team.js, and the "village" block in styles.css.
-import { S, db, h, avatar, emailOf, isAdmin, realAdmin, teamSorted, teamById, toast, dbErr, openDrawer, closeDrawer } from "./core.js";
+import { S, db, h, avatar, emailOf, isAdmin, realAdmin, teamSorted, teamById, toast, dbErr, openDrawer, closeDrawer,
+  today, daysUntil, nextMeeting, allEvents, posts, ownersFor, isDone, taskOwners, BRANDS } from "./core.js";
 import { openChat, dmThread } from "./chat.js";
+import { openMeeting } from "./meeting.js";
 
 /* ---------- sprite: 16 x 19 cells ---------- */
 // o outline · e eye · s skin · c cheek · h hair · t top · w collar · k tie · p trousers
@@ -79,11 +81,14 @@ export function sprite(t, cls, look){
 }
 
 /* ---------- the village on Home ---------- */
+// event days: a string of little flags along the top edge of the card, and two balloons
+const GARLAND = `<svg class="vil-garland" viewBox="0 0 320 12" preserveAspectRatio="none" shape-rendering="crispEdges" aria-hidden="true"><rect class="v-string" x="0" y="1" width="320" height="1"/>` +
+  [...Array(27)].map((_, i) => `<rect class="v-pen p${i % 3}" x="${2 + i * 12}" y="2" width="6" height="5"/><rect class="v-pen p${i % 3}" x="${3.5 + i * 12}" y="7" width="3" height="3"/>`).join("") + `</svg>`;
 const SCENE = `<svg class="vil-bg" viewBox="0 0 320 90" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges" aria-hidden="true">
   <rect class="v-sun" x="276" y="10" width="12" height="12"/>
   <g class="v-cloud"><rect x="34" y="14" width="26" height="6"/><rect x="40" y="10" width="12" height="4"/></g>
   <g class="v-cloud"><rect x="176" y="22" width="20" height="5"/><rect x="181" y="18" width="9" height="4"/></g>
-  <g transform="translate(18 44)"><rect class="v-roof" x="0" y="0" width="34" height="6"/><rect class="v-roof" x="4" y="-5" width="26" height="5"/><rect class="v-wall" x="3" y="6" width="28" height="20"/><rect class="v-door" x="14" y="14" width="7" height="12"/><rect class="v-win" x="6" y="10" width="5" height="5"/><rect class="v-win" x="23" y="10" width="5" height="5"/></g>
+  <g class="v-hall" transform="translate(18 44)"><title>Media team meeting</title><rect class="v-roof" x="0" y="0" width="34" height="6"/><rect class="v-roof" x="4" y="-5" width="26" height="5"/><rect class="v-wall" x="3" y="6" width="28" height="20"/><rect class="v-door" x="14" y="14" width="7" height="12"/><rect class="v-win" x="6" y="10" width="5" height="5"/><rect class="v-win" x="23" y="10" width="5" height="5"/></g>
   <g transform="translate(232 38)"><rect class="v-roof2" x="0" y="0" width="40" height="7"/><rect class="v-roof2" x="5" y="-6" width="30" height="6"/><rect class="v-wall" x="3" y="7" width="34" height="25"/><rect class="v-door" x="16" y="18" width="8" height="14"/><rect class="v-win" x="7" y="12" width="6" height="6"/><rect class="v-win" x="27" y="12" width="6" height="6"/></g>
   <g transform="translate(70 46)"><rect class="v-leaf" x="0" y="0" width="14" height="14"/><rect class="v-leaf" x="3" y="-4" width="8" height="4"/><rect class="v-trunk" x="5" y="14" width="4" height="10"/></g>
   <g transform="translate(212 52)"><rect class="v-leaf" x="0" y="0" width="10" height="10"/><rect class="v-trunk" x="3" y="10" width="4" height="8"/></g>
@@ -93,10 +98,26 @@ const SCENE = `<svg class="vil-bg" viewBox="0 0 320 90" preserveAspectRatio="xMi
 export function village(){
   const people = teamSorted();
   if (!people.length) return null;
-  const wrap = h("div",{class:"card vil"});
-  wrap.innerHTML = SCENE;
-  wrap.append(h("div",{class:"vil-row"}, ...people.map(villager)));
+  const d = today(), meetDay = nextMeeting() === d, events = allEvents().filter(e => e.date === d);
+  const wrap = h("div",{class:"card vil" + (meetDay ? " meet" : "") + (events.length ? " party" : ""),
+    style:events.length ? `--flag:${(BRANDS[events[0].brand] || {}).c || "var(--accent)"}` : null});
+  wrap.innerHTML = SCENE + (events.length ? GARLAND + `<span class="vil-balloon b1" aria-hidden="true">🎈</span><span class="vil-balloon b2" aria-hidden="true">🎈</span>` : "");
+  const hall = wrap.querySelector(".v-hall");
+  hall.addEventListener("click", () => openMeeting());
+  // today's news: the meeting and any event, as chips in the sky
+  const news = [
+    meetDay ? h("button",{class:"vil-chip meet", type:"button", onclick:() => openMeeting(d)}, "📅 Media team meeting today" + (S.meetCfg?.time ? " · " + S.meetCfg.time : "")) : null,
+    ...events.map(e => h("span",{class:"vil-chip", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--accent)"}`}, `🎉 ${e.name} today`))
+  ].filter(Boolean);
+  wrap.append(news.length ? h("div",{class:"vil-news"}, ...news) : "", h("div",{class:"vil-row"}, ...people.map(villager)));
   return wrap;
+}
+// what each person has going on: open requests (any late?) and posts going up today
+function doingsOf(t){
+  const reqs = S.tasks.filter(x => !x.done && taskOwners(x).includes(t.id));
+  const late = reqs.filter(x => x.due && daysUntil(x.due) < 0).length;
+  const mine = posts().filter(c => c.publishDate === today() && ownersFor(c).includes(t.id));
+  return {reqs:reqs.length, late, todayPosts:mine, allUp:mine.length > 0 && mine.every(isDone)};
 }
 // keep the hover card inside the window for people near the left or right edge
 function fit(ev){
@@ -106,11 +127,16 @@ function fit(ev){
 }
 // one person: hover or tab to them for their role, email and a message button
 function villager(t, i){
-  const me = t.id === S.meId, mail = emailOf(t);
-  return h("div",{class:"vil-p" + (me ? " me" : ""), tabindex:"0", style:`--i:${i}`, onpointerenter:fit, onfocusin:fit},
-    h("span",{class:"vil-bob"}, sprite(t)), h("span",{class:"vil-name"}, me ? "You" : (t.name || "").split(/\s+/)[0]),
+  const me = t.id === S.meId, mail = emailOf(t), w = doingsOf(t);
+  const posting = w.todayPosts.length && !w.allUp;
+  return h("div",{class:"vil-p" + (me ? " me" : "") + (w.allUp ? " cheer" : ""), tabindex:"0", style:`--i:${i}`, onpointerenter:fit, onfocusin:fit},
+    w.late ? h("span",{class:"vil-say late", "aria-hidden":"true"},"!") : w.reqs ? h("span",{class:"vil-say", "aria-hidden":"true"}, w.reqs) : null,
+    h("span",{class:"vil-bob"}, sprite(t), posting ? h("span",{class:"vil-hold", "aria-hidden":"true"},"📱") : w.allUp ? h("span",{class:"vil-hold", "aria-hidden":"true"},"🎉") : null),
+    h("span",{class:"vil-name"}, me ? "You" : (t.name || "").split(/\s+/)[0]),
     h("div",{class:"face-pop", role:"tooltip"},
       h("div",{class:"row"}, avatar(t, "md"), h("div",{}, h("b",{}, t.name), h("div",{class:"small muted"}, t.role || "Team"))),
+      w.reqs ? h("div",{class:"small" + (w.late ? " vil-late" : "")}, `${w.reqs} open request${w.reqs === 1 ? "" : "s"}${w.late ? ` · ${w.late} past due` : ""}`) : null,
+      w.todayPosts.length ? h("div",{class:"small"}, (w.allUp ? "Posted today: " : "Posting today: ") + w.todayPosts.map(c => c.title).join(", ")) : null,
       mail ? h("a",{class:"small", href:"mailto:" + mail}, mail) : null,
       me ? h("button",{class:"btn sm", type:"button", onclick:openCharacter},"Dress up")
         : S.meId ? h("button",{class:"btn sm", type:"button", onclick:() => openChat(dmThread(S.meId, t.id))},"Message") : null));
