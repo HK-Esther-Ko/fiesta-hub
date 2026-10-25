@@ -46,29 +46,32 @@ function reqCard(t){
       h("span",{class:"row tight"}, faces(t), h("span",{class:"small"}, ownerNames(t))),
       canEditTask(t) ? h("button",{class:"link", type:"button", onclick:() => setStatus(t, next[0])}, next[1]) : null));
 }
-// one card per person: their extra asks with a progress bar, so everyone's load is visible at a glance
+// one row per person, top to bottom: a long progress bar of their extra asks, with the open ones listed under it
 function peopleBoard(list){
   const since = ymd(addDays(parse(today()), -30)), byPrio = (a, b) => PRIORITIES.indexOf(a.priority || "Medium") - PRIORITIES.indexOf(b.priority || "Medium") || byDue(a, b);
   const people = teamSorted().filter(p => p.group === "media" || list.some(t => taskOwners(t).includes(p.id)));
   if (!people.length) return h("div",{class:"card empty"},"No one on the team yet.");
-  return h("div",{class:"pb"}, ...people.map(p => {
-    const theirs = list.filter(t => taskOwners(t).includes(p.id));
-    const open = theirs.filter(t => !t.done).sort((a, b) => (reqStatus(a) === "doing" ? 0 : 1) - (reqStatus(b) === "doing" ? 0 : 1) || byPrio(a, b));
-    const doing = open.filter(t => reqStatus(t) === "doing").length, todo = open.length - doing;
-    const done = theirs.filter(t => t.done && (t.doneAt || "") >= since).length, total = open.length + done;
-    const seg = (n, k) => n ? h("span",{class:"pb-seg k-" + k, style:`flex:${n}`}) : null;
-    return h("section",{class:"card pb-p" + (p.id === S.meId ? " me" : "")},
-      h("div",{class:"pb-h"}, avatar(p, "md"), h("div",{class:"pb-who"}, h("b",{}, p.name), h("span",{class:"small muted"}, p.role || "Team")),
-        h("div",{class:"pb-n"}, h("b",{}, open.length), h("span",{}, "open"))),
-      h("div",{class:"pb-bar", role:"img", "aria-label":`${done} done, ${doing} in progress, ${todo} to do`}, total ? [seg(done, "done"), seg(doing, "doing"), seg(todo, "todo")] : h("span",{class:"pb-seg"})),
-      h("div",{class:"pb-key"}, h("span",{class:"st"}, h("i",{class:"kdot k-todo"}), `To do ${todo}`), h("span",{class:"st"}, h("i",{class:"kdot k-doing"}), `In progress ${doing}`),
-        h("span",{class:"st"}, h("i",{class:"kdot k-done"}), `Done ${done}`, h("small",{class:"muted"}," · 30 days"))),
-      open.length ? h("div",{class:"pb-list"}, ...open.slice(0, 5).map(t => h("button",{class:"pb-t", type:"button", onclick:() => openTask(t.id)},
-          h("i",{class:"kdot k-" + reqStatus(t)}), h("span",{class:"pb-tt"}, t.text), duePill(t))),
-          open.length > 5 ? h("div",{class:"small muted pb-more"}, `+ ${open.length - 5} more`) : null)
-        : h("div",{class:"pb-none"}, "No extra requests right now."),
-      isAdmin() ? h("button",{class:"pb-add", type:"button", onclick:() => openTask(null, {ownerIds:[p.id]})}, `+ Ask ${p.name.split(/\s+/)[0]}`) : null);
-  }));
+  const key = (k, l) => h("span",{class:"st"}, h("i",{class:"kdot k-" + k}), l);
+  return h("section",{class:"card pl"},
+    h("div",{class:"pl-head"}, h("span",{class:"lbl"},"Person"), h("div",{class:"pl-key"}, key("done","Done (30 days)"), key("doing","In progress"), key("todo","To do")), h("span",{})),
+    ...people.map(p => {
+      const theirs = list.filter(t => taskOwners(t).includes(p.id));
+      const open = theirs.filter(t => !t.done).sort((a, b) => (reqStatus(a) === "doing" ? 0 : 1) - (reqStatus(b) === "doing" ? 0 : 1) || byPrio(a, b));
+      const doing = open.filter(t => reqStatus(t) === "doing").length, todo = open.length - doing;
+      const done = theirs.filter(t => t.done && (t.doneAt || "") >= since).length, total = open.length + done;
+      // each segment carries its own count, so the bar reads without the legend
+      const seg = (n, k) => n ? h("span",{class:"pl-seg k-" + k, style:`flex:${n}`}, n) : null;
+      return h("div",{class:"pl-row" + (p.id === S.meId ? " me" : "")},
+        h("div",{class:"pl-who"}, avatar(p, "md"), h("div",{}, h("b",{}, p.name), h("div",{class:"small muted"}, p.role || "Team"))),
+        h("div",{class:"pl-main"},
+          h("div",{class:"pl-track"},
+            h("div",{class:"pl-bar", role:"img", "aria-label":`${done} done, ${doing} in progress, ${todo} to do`},
+              total ? [seg(done, "done"), seg(doing, "doing"), seg(todo, "todo")] : h("span",{class:"pl-none"},"No extra requests")),
+            h("span",{class:"pl-sum"}, total ? `${done}/${total} done` : "")),
+          open.length ? h("div",{class:"pl-tasks"}, ...open.map(t => h("button",{class:"pl-t", type:"button", onclick:() => openTask(t.id)},
+            h("i",{class:"kdot k-" + reqStatus(t)}), h("span",{}, t.text), duePill(t)))) : null),
+        isAdmin() ? h("button",{class:"link pl-add", type:"button", onclick:() => openTask(null, {ownerIds:[p.id]})}, `+ Ask ${p.name.split(/\s+/)[0]}`) : h("span",{}));
+    }));
 }
 function viewRequests(){
   const f = ["all","mine","asked"].includes(S.reqFilter) ? S.reqFilter : "all";
