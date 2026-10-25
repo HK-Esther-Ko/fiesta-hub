@@ -145,7 +145,7 @@ export function openTask(id, preset){
       boxes ? h("div",{class:"field full"}, h("span",{class:"lbl"},"Who's on it (pick one or more)"),
         h("div",{class:"owners"}, ...boxes.map(([m, cb]) => h("label",{for:cb.id}, cb, avatar(m, "sm"), m.name))))
         : h("div",{class:"field full"}, h("span",{class:"lbl"},"Who"), h("div",{class:"owner-fixed"}, ownerNames({ownerIds:current.length ? current : [S.meId]}))),
-      h("div",{class:"field full"}, h("span",{class:"lbl"},"Status"), st.el), h("div",{class:"field"}, h("span",{class:"lbl"},"Priority"), prio.el), field("Due", due),
+      h("div",{class:"field full"}, h("span",{class:"lbl"},"Status"), st.el), field("Due", due), h("div",{class:"field full"}, h("span",{class:"lbl"},"Priority"), prio.el),
       field("For which post (optional)", post, true), field("Link", link, true), field("Details", notes, true),
       mailBox ? h("label",{class:"check-row field full", for:"tk-mail"}, mailBox, h("span",{}, "Also email them", h("br"), h("span",{class:"small muted"},"Opens your mail app with the request filled in")))
         : boxes ? h("p",{class:"small muted field full", style:"margin:0"},"People you add get an email too.") : null),
