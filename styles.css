@@ -721,6 +721,18 @@ a.mt-link:hover{border-color:var(--accent)}
   .pl-add{grid-column:2; grid-row:1; align-self:center; padding:0}
 }
 
+/* request drawer: status and priority as tap-to-pick buttons */
+.seg.pick{display:flex; flex-wrap:nowrap; width:100%}
+.seg.pick button{flex:1; justify-content:center; padding:9px 8px; font-size:13.5px}
+.seg.pick button i{width:9px; height:9px; border-radius:50%; background:var(--st-todo); flex:none}
+.seg.pick .st-doing i{background:var(--st-doing)} .seg.pick .st-published i{background:var(--st-published)}
+.seg.pick .p-high i{background:var(--bad)} .seg.pick .p-medium i{background:var(--accent)}
+.status-seg.pick button[aria-pressed="true"].st-todo{color:var(--ink)}
+.status-seg.pick button[aria-pressed="true"].st-doing{background:color-mix(in srgb, var(--st-doing) 16%, var(--surface)); color:var(--ink)}
+.status-seg.pick button[aria-pressed="true"].st-published{background:color-mix(in srgb, var(--st-published) 16%, var(--surface)); color:var(--ink)}
+.prio-seg button[aria-pressed="true"].p-high{background:color-mix(in srgb, var(--bad) 12%, var(--surface)); color:var(--bad)}
+.prio-seg button[aria-pressed="true"].p-medium{background:var(--accent-soft); color:var(--accent)}
+
 /* ---------- Home: our channels ---------- */
 .chan{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; padding:4px 18px 16px}
 .chan-btn{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; border:1px solid var(--line); border-radius:12px; padding:9px 12px; text-decoration:none; min-width:0}

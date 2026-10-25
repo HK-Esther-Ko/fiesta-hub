@@ -105,6 +105,13 @@ export function prepSection(c){
     h("div",{class:"d-sec spread"}, h("h3",{},"Prep for this post"), h("button",{class:"link", type:"button", onclick:() => openTask(null, {postId:c.id, due:c.publishDate || ""})}, "+ Request something")),
     reqs.length ? h("div",{class:"list"}, ...reqs.map(t => taskRow(t, true))) : h("div",{class:"empty"},"Nothing requested yet, e.g. a cover image or founder logo."));
 }
+// a row of buttons instead of a dropdown: every choice is visible and one tap sets it
+function pick(label, opts, value, cls){
+  let v = value;
+  const el = h("div",{class:"seg pick " + cls, role:"group", "aria-label":label}, ...opts.map(([k, l, c]) => h("button",{type:"button", class:c, "aria-pressed":String(k === v),
+    onclick:ev => { v = k; el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget))); }}, h("i",{}), l)));
+  return {el, get value(){ return v; }};
+}
 export function openTask(id, preset){
   const t = id ? S.tasks.find(x => x.id === id) : {priority:"Medium", ...(preset || {}), ownerIds:isAdmin() ? (preset?.ownerIds || []) : [S.meId]};
   if (!t) return;
@@ -112,8 +119,8 @@ export function openTask(id, preset){
   const text = input("tk-text", t.text, {placeholder:"e.g. Newsletter cover image"});
   const boxes = isAdmin() ? teamSorted().map(m => { const cb = h("input",{type:"checkbox", id:"tko-" + m.id, value:m.id}); cb.checked = current.includes(m.id); return [m, cb]; }) : null;
   const due = input("tk-due", t.due, {type:"date"});
-  const prio = select("tk-prio", PRIORITIES, t.priority || "Medium");
-  const st = select("tk-status", REQ_COLS, reqStatus(t));
+  const prio = pick("Priority", PRIORITIES.map(p => [p, p, "p-" + p.toLowerCase()]), t.priority || "Medium", "prio-seg");
+  const st = pick("Status", REQ_COLS.map(([k, l]) => [k, l, "st-" + (k === "done" ? "published" : k)]), reqStatus(t), "status-seg");
   const ps = posts().filter(c => c.publishDate && (c.id === t.postId || daysUntil(c.publishDate) >= -14)).sort((a, b) => a.publishDate.localeCompare(b.publishDate)).slice(0, 150);
   const post = select("tk-post", [["","Not linked to a post"], ...ps.map(c => [c.id, `${fmtShort(c.publishDate)} · ${c.brand} · ${c.title}`])], t.postId || "");
   const link = input("tk-link", t.link, {type:"url", placeholder:"Drive link to references or the finished file"});
@@ -138,7 +145,7 @@ export function openTask(id, preset){
       boxes ? h("div",{class:"field full"}, h("span",{class:"lbl"},"Who's on it (pick one or more)"),
         h("div",{class:"owners"}, ...boxes.map(([m, cb]) => h("label",{for:cb.id}, cb, avatar(m, "sm"), m.name))))
         : h("div",{class:"field full"}, h("span",{class:"lbl"},"Who"), h("div",{class:"owner-fixed"}, ownerNames({ownerIds:current.length ? current : [S.meId]}))),
-      field("Due", due), field("Priority", prio), field("Status", st),
+      h("div",{class:"field full"}, h("span",{class:"lbl"},"Status"), st.el), h("div",{class:"field"}, h("span",{class:"lbl"},"Priority"), prio.el), field("Due", due),
       field("For which post (optional)", post, true), field("Link", link, true), field("Details", notes, true),
       mailBox ? h("label",{class:"check-row field full", for:"tk-mail"}, mailBox, h("span",{}, "Also email them", h("br"), h("span",{class:"small muted"},"Opens your mail app with the request filled in")))
         : boxes ? h("p",{class:"small muted field full", style:"margin:0"},"People you add get an email too.") : null),
