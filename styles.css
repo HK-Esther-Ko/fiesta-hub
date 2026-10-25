@@ -672,10 +672,10 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .wa-ev.meet{all:unset; box-sizing:border-box; cursor:pointer; display:flex; gap:6px; align-items:flex-start; font-size:11.5px; font-weight:700; padding:5px 7px; border-radius:8px; background:#4a5a8a; color:#fff; line-height:1.3}
 .wa-ev.meet small{display:block; font-weight:600; opacity:.85}
 .wa-ev.meet:hover{filter:brightness(1.1)} .wa-ev.meet:focus-visible{outline:2px solid var(--accent)}
-.wa-post{all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; gap:3px; padding:7px 8px; border-radius:8px; background:var(--surface); box-shadow:inset 3px 0 0 var(--c); min-width:0}
-.wa-post:hover{box-shadow:inset 3px 0 0 var(--c), var(--shadow)} .wa-post:focus-visible{outline:2px solid var(--accent)}
+.wa-post{all:unset; box-sizing:border-box; cursor:pointer; display:flex; flex-direction:column; gap:3px; padding:7px 8px; border-radius:8px; background:var(--surface); min-width:0}
+.wa-post:hover{box-shadow:var(--shadow)} .wa-post:focus-visible{outline:2px solid var(--accent)}
 .wa-post.nl{box-shadow:inset 0 0 0 1.5px var(--c)}
-.wa-post.late{box-shadow:inset 3px 0 0 var(--c), inset 0 0 0 1.5px var(--bad)}
+.wa-post.late{box-shadow:inset 0 0 0 1.5px var(--bad)}
 .wa-top{display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:var(--muted); min-width:0}
 .wa-top .ic{color:var(--c)}
 .wa-o{margin-left:auto; flex:none}
