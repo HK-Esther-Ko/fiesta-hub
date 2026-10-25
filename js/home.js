@@ -96,13 +96,13 @@ function viewHome(){
   if (!me) return [h("div",{class:"hello"}, h("h1",{},"Welcome!"), h("p",{},"Your account isn't linked to a team card yet. Ask an admin to add your email on the Access page."))];
   const mine = S.tasks.filter(isMyTask), open = mine.filter(t => !t.done).sort((a, b) => (a.due || "9").localeCompare(b.due || "9"));
   const doneRecent = mine.filter(t => t.done && (t.doneAt || "") >= ymd(addDays(parse(today()), -30))).length;
-  const myPosts = posts().filter(c => ownersFor(c).includes(me.id) && !isDone(c) && c.deadline && daysUntil(c.deadline) <= 7);
+  const myPosts = posts().filter(c => ownersFor(c).includes(me.id) && !isDone(c) && c.publishDate && daysUntil(c.publishDate) <= 7);
   const published = posts().filter(isDone).sort((a, b) => (b.publishDate || "").localeCompare(a.publishDate || "")).slice(0, 3);
   const rows = kpiRows();
   const chans = CHANNELS.map(([key, label, def]) => [key, label, channelUrl(key, def)]).filter(([, , u]) => u);
   return [
     h("div",{class:"hello"}, h("h1",{}, `Hi ${me.name.split(/\s+/)[0]}`),
-      h("p",{}, open.length || myPosts.length ? `${open.length} open task${open.length === 1 ? "" : "s"} and ${myPosts.length} post${myPosts.length === 1 ? "" : "s"} due this week.` : "You're all caught up.")),
+      h("p",{}, open.length || myPosts.length ? `${open.length} open task${open.length === 1 ? "" : "s"} and ${myPosts.length} post${myPosts.length === 1 ? "" : "s"} going up this week.` : "You're all caught up.")),
     meetingBar(),
     section("FIESTA village", "Everyone on the team. Hover over someone to see their role and send a message.",
       h("div",{class:"row tight"}, linkBtn("Dress up my character", openCharacter), linkBtn("Team page", () => { S.teamTab = "roles"; setView("team"); })), village()),

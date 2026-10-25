@@ -160,13 +160,14 @@ export const ownersFor = c => OWNER_RULES.find(([, test]) => test(c))[2].filter(
 export const posts = () => S.content.map(normItem).filter(isPost);
 export function brandChip(b){ const B = BRANDS[b] || {label:b || "—", c:"var(--muted)"}; return h("span",{class:"chip", style:`--c:${B.c}`}, B.label); }
 export function statusPill(k){ return h("span",{class:"st st-" + k}, h("i",{}), statusLabel(k)); }
-export function deadlinePill(c){
-  if (!c.deadline || isDone(c)) return null;
-  const n = daysUntil(c.deadline);
-  if (n < 0) return h("span",{class:"pill bad"}, `${-n}d overdue`);
-  if (n === 0) return h("span",{class:"pill bad"}, "Due today");
-  if (n <= 3) return h("span",{class:"pill warn"}, `${n}d left`);
-  return h("span",{class:"pill"}, `${n}d left`);
+// how far off a post's date is; one date per post, the day it goes up
+export function datePill(c){
+  if (!c.publishDate || isDone(c)) return null;
+  const n = daysUntil(c.publishDate);
+  if (n < 0) return h("span",{class:"pill bad"}, `${-n}d past date`);
+  if (n === 0) return h("span",{class:"pill bad"}, "Today");
+  if (n <= 3) return h("span",{class:"pill warn"}, n === 1 ? "Tomorrow" : `In ${n} days`);
+  return h("span",{class:"pill"}, `In ${n} days`);
 }
 
 /* ---------- events ---------- */

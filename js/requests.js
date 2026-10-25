@@ -102,7 +102,7 @@ function viewRequests(){
 export function prepSection(c){
   const reqs = S.tasks.filter(t => t.postId === c.id);
   return h("section",{class:"d-thread"},
-    h("div",{class:"d-sec spread"}, h("h3",{},"Prep for this post"), h("button",{class:"link", type:"button", onclick:() => openTask(null, {postId:c.id, due:c.deadline || ""})}, "+ Request something")),
+    h("div",{class:"d-sec spread"}, h("h3",{},"Prep for this post"), h("button",{class:"link", type:"button", onclick:() => openTask(null, {postId:c.id, due:c.publishDate || ""})}, "+ Request something")),
     reqs.length ? h("div",{class:"list"}, ...reqs.map(t => taskRow(t, true))) : h("div",{class:"empty"},"Nothing requested yet, e.g. a cover image or founder logo."));
 }
 export function openTask(id, preset){

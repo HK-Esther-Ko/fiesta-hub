@@ -99,7 +99,7 @@ export function composer(thread){
     const dm = thread.startsWith("dm:") ? thread.slice(3).split("|").filter(x => x !== S.meId) : [];
     const ownerIds = [...new Set([...dm, ...extractMentions(ta.value)])];
     const post = S.content.find(c => c.id === thread);
-    openTask(null, {ownerIds, thread, text:S.team.reduce((s, m) => m.name ? s.replace(new RegExp("@" + escRe(m.name), "gi"), "") : s, ta.value).replace(/\s+/g, " ").trim().slice(0, 140), postId:post?.id || "", due:post?.deadline || ""});
+    openTask(null, {ownerIds, thread, text:S.team.reduce((s, m) => m.name ? s.replace(new RegExp("@" + escRe(m.name), "gi"), "") : s, ta.value).replace(/\s+/g, " ").trim().slice(0, 140), postId:post?.id || "", due:post?.publishDate || ""});
   }}, "+ Request") : null;
   return h("div",{class:"composer"}, menu, ta, h("div",{class:"cmp-foot"}, h("span",{class:"small muted"},"Enter to send · Shift+Enter for a new line"), h("div",{class:"row"}, ask, send)));
 }

@@ -6,7 +6,7 @@ How the hub is meant to work, why, and what to keep consistent when changing it.
 
 | Person | Comes in to… | Lands on |
 |---|---|---|
-| Content manager (Esther) | Plan and track posts, check deadlines, enter KPIs | Home → Calendar |
+| Content manager (Esther) | Plan and track posts, check what goes up when, enter KPIs | Home → Calendar |
 | Media team (Tayo, Gaia, Mindy, Kate) | See what's due from them, find files, check event roles | Home |
 | Leadership (Cherie, Ryan, John) | See who does what, give access, glance at KPIs | Home → Event org chart, Analytics |
 
@@ -23,7 +23,7 @@ Seven items, most used first: Home, Calendar, Analytics, Event org chart, Roles,
 *Why:* Hick's law: fewer, well-grouped choices are faster to pick from. Rare or risky actions are kept away from everyday ones.
 
 ### 3. One place for each fact
-A calendar item holds everything about one post: date and time, deadline, brief/caption, owner, working folder and finished-file link, plus its own discussion thread. Nothing is duplicated in another page.
+A calendar item holds everything about one post: its date and time, brief/caption, owner, a Files link (Drive) and the link to the published post, plus its own discussion thread. Nothing is duplicated in another page.
 *Why:* duplicated data drifts apart; a single source of truth means nobody asks "which one is right?"
 
 ### 4. Notifications: actionable first, and few
@@ -61,8 +61,8 @@ Plus Jakarta Sans at 14.5px+, high-contrast navy on white, FIESTA orange only as
 
 | Page | Its one job |
 |---|---|
-| Home | Your tasks, your deadlines, what's coming up |
-| Calendar | Plan and track every post; deadlines listed under the grid |
+| Home | Your tasks, your posts, what's coming up |
+| Calendar | Plan and track every post; what's coming up listed under the grid |
 | Analytics | Monthly KPIs (entered by hand) and plan-vs-published from the calendar |
 | Event org chart | Who does what at FIESTA / FoundHERs; next meetup's pitchers |
 | Roles | The team page: photo, title, responsibilities |

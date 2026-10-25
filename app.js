@@ -20,7 +20,7 @@ import { updateThreads, renderChatButton, renderChatPanel, openChat, threadTitle
 const scrollTo = id => setTimeout(() => document.getElementById(id)?.scrollIntoView({behavior:"smooth", block:"start"}), 60);
 const NAV = [
   ["home","Home"],
-  ["calendar","Calendar", () => [["cal","Calendar", () => true, () => {}], ["dl","Production deadlines", () => false, () => scrollTo("deadlines")]]],
+  ["calendar","Calendar", () => [["cal","Calendar", () => true, () => {}], ["up","Coming up", () => false, () => scrollTo("upcoming")]]],
   ["requests","Requests", () => [["all","All"],["mine","Mine"],["asked","I asked for"]].map(([k, l]) => [k, l, () => (S.reqFilter || "all") === k, () => { S.reqFilter = k; }])],
   ["analytics","Analytics", () => [["ig","Instagram", () => true, () => {}]]],
   ["team","Team", () => [["chart","Event org chart"],["roles","Roles"]].map(([k, l]) => [k, l, () => (S.teamTab === "roles" ? "roles" : "chart") === k, () => { S.teamTab = k; save("hub.teamTab", k); }])],
@@ -80,9 +80,9 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !document.
 function notifications(){
   if (!S.meId) return [];
   const out = [];
-  for (const c of posts().filter(c => ownersFor(c).includes(S.meId) && !isDone(c) && c.deadline && daysUntil(c.deadline) <= 2)){
-    const d = daysUntil(c.deadline);
-    out.push({sticky:true, tone:d < 0 ? "bad" : "warn", label:d < 0 ? `${-d}d overdue` : d === 0 ? "Due today" : `Due ${fmtShort(c.deadline)}`, text:c.title, go:() => openItem(c.id)});
+  for (const c of posts().filter(c => ownersFor(c).includes(S.meId) && !isDone(c) && c.publishDate && daysUntil(c.publishDate) <= 2)){
+    const d = daysUntil(c.publishDate);
+    out.push({sticky:true, tone:d < 0 ? "bad" : "warn", label:d < 0 ? `${-d}d past date` : d === 0 ? "Goes up today" : `Goes up ${fmtShort(c.publishDate)}`, text:c.title, go:() => openItem(c.id)});
   }
   for (const t of S.tasks.filter(t => isMyTask(t) && !t.done && t.due && daysUntil(t.due) <= 2))
     out.push({sticky:true, tone:daysUntil(t.due) < 0 ? "bad" : "warn", label:daysUntil(t.due) < 0 ? "Request late" : "Request due", text:t.text, go:() => openTask(t.id)});

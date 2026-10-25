@@ -1,6 +1,6 @@
 # FIESTA Media Hub
 
-The FIESTA media team's internal site: content calendar, deadlines, events and role charts, meetings and to-dos, team chat with @mentions, Drive folder links, SOPs and the team page.
+The FIESTA media team's internal site: content calendar, events and role charts, meetings and to-dos, team chat with @mentions, Drive folder links, SOPs and the team page.
 
 - **Hosting:** GitHub Pages (static files, free)
 - **Sign-in and data:** Firebase Auth (Google sign-in) + Cloud Firestore, on the free Spark plan

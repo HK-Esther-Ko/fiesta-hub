@@ -1,6 +1,6 @@
-// Content calendar: what goes live, where and when. Production deadlines are listed under the grid.
+// Content calendar: what goes up, where and when. Each post has one date; what's coming up is listed under the grid.
 import { S, db, h, icon, isAdmin, realAdmin, registerView, renderMain, setView, save, ymd, parse, pad, today, addDays, daysUntil, fmt, fmtShort, monthName, firstOfMonth,
-  safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, deadlinePill,
+  safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, datePill,
   allEvents, meetingsBetween, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
 import { threadList, composer, updateThreads } from "./chat.js";
 import { prepSection } from "./requests.js";
@@ -18,7 +18,7 @@ function filters(){
 }
 function chip(c){
   return h("button",{class:`ev st-${c.status}` + (c.platform === "Newsletter" ? " nl" : "") + (isLate(c) ? " late" : ""), type:"button",
-    style:`--c:${BRANDS[c.brand].c}`, title:`${c.title} · ${c.platform} ${c.format} · ${statusLabel(c.status)}${c.deadline ? " · due " + fmtShort(c.deadline) : ""}`, onclick:() => openItem(c.id)},
+    style:`--c:${BRANDS[c.brand].c}`, title:`${c.title} · ${c.platform} ${c.format} · ${statusLabel(c.status)}`, onclick:() => openItem(c.id)},
     icon(PLATFORMS[c.platform].icon, 12), h("span",{class:"ev-t"}, c.title), h("span",{class:"ev-o"}, ownerTag(c)));
 }
 
@@ -88,38 +88,45 @@ function viewCalendar(){
     h("div",{class:"st-sum"}, ...STATUS.map(([k, l]) => h("span",{class:"st st-" + k}, h("i",{}), `${l} · ${inMonth.filter(c => c.status === k).length}`)),
       late ? h("span",{class:"st late"}, h("i",{}), `${late} past date, not published`) : null),
     h("div",{class:"card cal-wrap"}, h("div",{class:"cal"}, cells)),
-    ...deadlineSections(items)
+    ...upcomingSections(items)
   ];
 }
 export function itemRow(c){
   return h("button",{class:"item", type:"button", onclick:() => openItem(c.id)},
     h("span",{class:"pf", style:`--c:${BRANDS[c.brand].c}`}, icon(PLATFORMS[c.platform].icon, 16)),
-    h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.brand} · ${c.format}${c.publishDate ? " · live " + fmtShort(c.publishDate) : ""} · ${ownersFor(c).map(firstName).join(", ")}`)),
-    h("div",{class:"when"}, statusPill(c.status), deadlinePill(c)));
+    h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.brand} · ${c.format}${c.publishDate ? " · " + fmtShort(c.publishDate) : ""} · ${ownersFor(c).map(firstName).join(", ")}`)),
+    h("div",{class:"when"}, statusPill(c.status), datePill(c)));
 }
-function deadlineSections(items){
-  const open = items.filter(c => !isDone(c) && c.deadline).sort((a, b) => a.deadline.localeCompare(b.deadline));
-  const overdue = open.filter(c => daysUntil(c.deadline) < 0), week = open.filter(c => { const n = daysUntil(c.deadline); return n >= 0 && n <= 7; });
-  const later = open.filter(c => daysUntil(c.deadline) > 7);
+function upcomingSections(items){
+  const open = items.filter(c => !isDone(c) && c.publishDate).sort((a, b) => a.publishDate.localeCompare(b.publishDate) || hourOf(a.time) - hourOf(b.time));
+  const past = open.filter(c => daysUntil(c.publishDate) < 0), week = open.filter(c => { const n = daysUntil(c.publishDate); return n >= 0 && n <= 7; });
+  const later = open.filter(c => daysUntil(c.publishDate) > 7);
   return [
-    h("div",{class:"sec-h", id:"deadlines"}, h("h3",{},"Production deadlines"), h("span",{class:"muted small"},"When each post has to be finished, before it goes live")),
+    h("div",{class:"sec-h", id:"upcoming"}, h("h3",{},"Coming up"), h("span",{class:"muted small"},"Posts that aren't up yet, by date")),
     h("div",{class:"dl-grid"},
-      h("div",{class:"card"}, h("div",{class:"card-h"}, h("h3",{}, "Overdue"), h("span",{class:"count bad"}, overdue.length)), h("div",{class:"list"}, ...(overdue.length ? overdue.map(itemRow) : [h("div",{class:"empty"},"Nothing overdue.")]))),
-      h("div",{class:"card"}, h("div",{class:"card-h"}, h("h3",{}, "Next 7 days"), h("span",{class:"count"}, week.length)), h("div",{class:"list"}, ...(week.length ? week.map(itemRow) : [h("div",{class:"empty"},"Nothing due this week.")])))),
+      h("div",{class:"card"}, h("div",{class:"card-h"}, h("h3",{}, "Date passed, not up yet"), h("span",{class:"count bad"}, past.length)), h("div",{class:"list"}, ...(past.length ? past.map(itemRow) : [h("div",{class:"empty"},"Nothing behind.")]))),
+      h("div",{class:"card"}, h("div",{class:"card-h"}, h("h3",{}, "Next 7 days"), h("span",{class:"count"}, week.length)), h("div",{class:"list"}, ...(week.length ? week.map(itemRow) : [h("div",{class:"empty"},"Nothing going up this week.")])))),
     later.length ? h("details",{class:"card fold"}, h("summary",{}, `Later · ${later.length}`), h("div",{class:"list"}, ...later.map(itemRow))) : null
   ];
 }
 
 /* ---------- one post ---------- */
+const FILES_HINT = "Drive folder with the drafts and finished files", POST_HINT = "Link to the post once it's up (Instagram, LinkedIn…)";
 function facts(c){
-  const final = safeUrl(c.finalUrl);
   return h("dl",{class:"facts"},
-    h("div",{}, h("dt",{},"Goes live"), h("dd",{}, c.publishDate ? fmt(c.publishDate) + (c.time ? " · " + c.time : "") : "Not scheduled")),
-    h("div",{}, h("dt",{},"Production deadline"), h("dd",{}, c.deadline ? [fmt(c.deadline), " ", deadlinePill(c)] : "Not set")),
+    h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate) + (c.time ? " · " + c.time : ""), " ", datePill(c)] : "Not scheduled")),
     h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
     h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", "))),
     h("div",{class:"wide"}, h("dt",{},"Content"), h("dd",{style:"white-space:pre-wrap"}, c.notes || "No brief yet.")),
-    c.platform === "Newsletter" ? null : h("div",{class:"wide"}, h("dt",{},"Finished file"), h("dd",{}, final ? h("a",{href:final, target:"_blank", rel:"noopener"},"Open finished file ↗") : "Not uploaded yet.")));
+    h("div",{class:"wide"}, h("dt",{},"Links"), h("dd",{class:"row tight"}, ...linkBtns(c))));
+}
+// a post keeps two links: its Drive folder (drafts and finished files) and the published post itself
+const filesUrl = c => safeUrl(c.driveUrl) || safeUrl(c.finalUrl);
+function linkBtns(c){
+  const files = filesUrl(c), post = safeUrl(c.postUrl);
+  if (!files && !post) return ["No links yet."];
+  return [files ? h("a",{class:"btn sm", href:files, target:"_blank", rel:"noopener"},"Files ↗") : null,
+    post ? h("a",{class:"btn sm primary", href:post, target:"_blank", rel:"noopener"},"Open post ↗") : null];
 }
 function discussion(c){
   return h("section",{class:"d-thread"}, h("div",{class:"d-sec"}, h("h3",{},"Discussion")), threadList(c.id), composer(c.id));
@@ -130,9 +137,7 @@ export function openItem(id, day){
   const c = raw ? normItem(raw) : {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo", publishDate:day || ""};
   if (!isAdmin() && ownersFor(c).includes(S.meId)){ openOwnItem(id, c); return; }
   if (!isAdmin()){
-    const drive = safeUrl(c.driveUrl);
-    openDrawer(c.title, [h("div",{class:"row"}, brandChip(c.brand), statusPill(c.status)), facts(c),
-      drive ? h("a",{class:"btn", href:drive, target:"_blank", rel:"noopener"},"Working folder ↗") : null, prepSection(c), discussion(c)]);
+    openDrawer(c.title, [h("div",{class:"row"}, brandChip(c.brand), statusPill(c.status)), facts(c), prepSection(c), discussion(c)]);
     updateThreads(); return;
   }
   const f = {
@@ -142,15 +147,11 @@ export function openItem(id, day){
     format: select("it-format", PLATFORMS[c.platform].formats, c.format),
     publishDate: input("it-pub", c.publishDate, {type:"date"}),
     time: input("it-time", c.time, {placeholder:"12 PM"}),
-    deadline: input("it-due", c.deadline, {type:"date"}),
     notes: textarea("it-notes", c.notes, 4, "What the post says: featured founder, key points, caption draft…"),
-    driveUrl: input("it-drive", c.driveUrl, {type:"url", placeholder:"Drive folder with raw files and drafts"}),
-    finalUrl: input("it-final", c.finalUrl, {type:"url", placeholder:"Drive link to the finished file"})
+    driveUrl: input("it-drive", c.driveUrl || c.finalUrl, {type:"url", placeholder:FILES_HINT}),
+    postUrl: input("it-post", c.postUrl, {type:"url", placeholder:POST_HINT})
   };
-  // newsletters are sent, not uploaded: no finished file
-  const finalField = field("Finished file", f.finalUrl, true), paintFinal = () => { finalField.hidden = f.platform.value === "Newsletter"; };
-  f.platform.onchange = () => { const fm = PLATFORMS[f.platform.value].formats; f.format.replaceChildren(...fm.map(x => h("option",{value:x}, x))); paintOwner(); paintFinal(); };
-  paintFinal();
+  f.platform.onchange = () => { const fm = PLATFORMS[f.platform.value].formats; f.format.replaceChildren(...fm.map(x => h("option",{value:x}, x))); paintOwner(); };
   let status = c.status;
   const seg = h("div",{class:"seg status-seg", role:"group", "aria-label":"Progress"}, ...STATUS.map(([k, l]) => h("button",{type:"button", class:"st-" + k, "aria-pressed":String(status === k), onclick:async ev => {
     status = k; seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget)));
@@ -164,14 +165,14 @@ export function openItem(id, day){
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("div",{class:"fields"},
       field("Title", f.title, true), field("Brand", f.brand), field("Platform", f.platform), field("Format", f.format),
-      id ? field("Goes live", f.publishDate) : null, field(id ? "Time" : "Goes live at", f.time), field("Production deadline", f.deadline),
+      id ? field("Date", f.publishDate) : null, field("Time", f.time),
       h("div",{class:"field full"}, h("span",{class:"lbl"},"Owner"), ownerTxt),
-      field("Content brief & caption", f.notes, true), field("Working folder", f.driveUrl, true), finalField),
+      field("Content brief & caption", f.notes, true), field("Files", f.driveUrl, true), field("Post link", f.postUrl, true)),
     h("div",{class:"d-actions"}, id ? deleteButton(() => db.collection("content").doc(id).delete()) : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         const title = f.title.value.trim(); if (!title){ msg.textContent = "Give it a title."; return; }
         const data = {title, brand:f.brand.value, platform:f.platform.value, format:f.format.value, publishDate:f.publishDate.value, time:f.time.value.trim(),
-          deadline:f.deadline.value, notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), finalUrl:f.platform.value === "Newsletter" ? "" : f.finalUrl.value.trim(), status,
+          notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), postUrl:f.postUrl.value.trim(), status,
           ownerIds:ownersFor({platform:f.platform.value, title, type:c.type}), updatedAt:new Date().toISOString()};
         try{ if (id) await db.collection("content").doc(id).update(data); else await db.collection("content").add({...data, createdAt:data.updatedAt});
           closeDrawer(); toast(id ? "Saved." : "Added to the calendar."); }catch(e){ msg.textContent = dbErr(e); }
@@ -182,28 +183,27 @@ export function openItem(id, day){
 }
 
 // owners (not admins) work on their own posts: progress, brief, folder and finished file.
-// Date, deadline, platform and owner stay with admins.
+// Date, platform and owner stay with admins.
 function openOwnItem(id, c){
   let status = c.status;
   const seg = h("div",{class:"seg status-seg", role:"group", "aria-label":"Progress"}, ...STATUS.map(([k, l]) => h("button",{type:"button", class:"st-" + k, "aria-pressed":String(status === k), onclick:ev => {
     status = k; seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget))); }}, h("i",{}), l)));
   const notes = textarea("ow-notes", c.notes, 4, "What the post says: featured founder, key points, caption draft…");
-  const drive = input("ow-drive", c.driveUrl, {type:"url", placeholder:"Drive folder with raw files and drafts"});
-  const final = input("ow-final", c.finalUrl, {type:"url", placeholder:"Drive link to the finished file"});
+  const drive = input("ow-drive", c.driveUrl || c.finalUrl, {type:"url", placeholder:FILES_HINT});
+  const post = input("ow-post", c.postUrl, {type:"url", placeholder:POST_HINT});
   const msg = h("div",{class:"cmp-status"});
   openDrawer(c.title, [
     h("div",{class:"row"}, brandChip(c.brand), h("span",{class:"pill"},"Your post")),
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("dl",{class:"facts"},
-      h("div",{}, h("dt",{},"Goes live"), h("dd",{}, c.publishDate ? fmt(c.publishDate) + (c.time ? " · " + c.time : "") : "Not scheduled")),
-      h("div",{}, h("dt",{},"Production deadline"), h("dd",{}, c.deadline ? [fmt(c.deadline), " ", deadlinePill(c)] : "Not set")),
+      h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate) + (c.time ? " · " + c.time : ""), " ", datePill(c)] : "Not scheduled")),
       h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
       h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", ")))),
-    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Working folder", drive, true), c.platform === "Newsletter" ? null : field("Finished file", final, true)),
-    h("div",{class:"d-actions"}, h("span",{class:"small muted"},"Date and deadline are set by an admin."),
+    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Files", drive, true), field("Post link", post, true)),
+    h("div",{class:"d-actions"}, h("span",{class:"small muted"},"The date is set by an admin."),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         if (realAdmin() && S.preview){ closeDrawer(); toast("Preview: nothing was saved."); return; }
-        try{ await db.collection("content").doc(id).update({status, notes:notes.value.trim(), driveUrl:drive.value.trim(), finalUrl:final.value.trim(), updatedAt:new Date().toISOString()});
+        try{ await db.collection("content").doc(id).update({status, notes:notes.value.trim(), driveUrl:drive.value.trim(), postUrl:post.value.trim(), updatedAt:new Date().toISOString()});
           closeDrawer(); toast("Saved."); }catch(e){ msg.textContent = dbErr(e); }
       }},"Save")), msg,
     prepSection(c), discussion(c)
@@ -236,12 +236,12 @@ function spread(days, count, load){
   }
   return out.sort();
 }
-function buildPlan({nSpot, nInt, winsDay, names, start, end, nextEvent, eventDate, lead, fhDate, fhN}){
+function buildPlan({nSpot, nInt, winsDay, names, start, end, nextEvent, eventDate, fhDate, fhN}){
   const out = [], load = {};
   const add = (group, brand, platform, format, d, time, title, type) => {
     const key = typeof d === "string" ? d : ymd(d);
     if (platform === "Instagram") load[key] = (load[key] || 0) + 1;
-    out.push({group, brand, platform, format, type, publishDate:key, time, title, deadline:ymd(addDays(parse(key), -lead))});
+    out.push({group, brand, platform, format, type, publishDate:key, time, title});
   };
   const s = parse(start), e = parse(end);
   const range = (a, b) => { const r = []; for (let d = a; d <= b; d = addDays(d, 1)) r.push(d); return r; };
@@ -299,7 +299,6 @@ function openPlanner(){
   const fhNSel = select("pl-fhn", [0,1,2,3,4].map(x => [String(x), `${x} reels`]), "2");
   const nextIn = input("pl-next", "", {type:"date"}), fhIn = input("pl-fh", "", {type:"date"});
   const startIn = input("pl-start", "", {type:"date"}), endIn = input("pl-end", "", {type:"date"});
-  const leadSel = select("pl-lead", [1,2,3,5,7].map(x => [String(x), `${x} day${x > 1 ? "s" : ""} before`]), "2");
   const msg = h("div",{class:"cmp-status"}), out = h("div",{class:"preview"});
   const load = () => {
     const ev = fiestas.find(e => e.id === evSel.value), next = fiestas.find(e => e.date > ev.date);
@@ -312,7 +311,7 @@ function openPlanner(){
     const ev = fiestas.find(e => e.id === evSel.value);
     if (!startIn.value || !endIn.value || endIn.value < startIn.value){ msg.textContent = "Check the dates: the end has to be after the start."; return; }
     const plan = buildPlan({nSpot:+nSel.value, nInt:+intSel.value, winsDay:+winsSel.value, names:[], start:startIn.value, end:endIn.value, nextEvent:nextIn.value,
-      eventDate:ev.date, lead:+leadSel.value, fhDate:fhIn.value, fhN:+fhNSel.value});
+      eventDate:ev.date, fhDate:fhIn.value, fhN:+fhNSel.value});
     const exists = new Set(S.content.map(c => c.publishDate + "|" + (c.title || "").toLowerCase()));
     const boxes = plan.map(p => { const cb = h("input",{type:"checkbox", "aria-label":"Include " + p.title}); cb.checked = !exists.has(p.publishDate + "|" + p.title.toLowerCase()); return cb; });
     const weeks = Math.max(1, Math.round((parse(endIn.value) - parse(startIn.value)) / (7 * 86400000)));
@@ -321,7 +320,7 @@ function openPlanner(){
       const picks = plan.filter((_, i) => boxes[i].checked); if (!picks.length){ msg.textContent = "Nothing selected."; return; }
       create.disabled = true; msg.textContent = `Creating ${picks.length} posts…`;
       const now = new Date().toISOString();
-      try{ for (const p of picks){ const {group, ...rest} = p; await db.collection("content").add({...rest, status:"todo", ownerIds:ownersFor(p), notes:"", driveUrl:"", finalUrl:"", createdAt:now, updatedAt:now}); } }
+      try{ for (const p of picks){ const {group, ...rest} = p; await db.collection("content").add({...rest, status:"todo", ownerIds:ownersFor(p), notes:"", driveUrl:"", postUrl:"", createdAt:now, updatedAt:now}); } }
       catch(e){ msg.textContent = dbErr(e); create.disabled = false; return; }
       const byOwner = {}; for (const p of picks) for (const o of ownersFor(p)) (byOwner[o] ||= []).push(p);
       if (S.meId){ try{ await db.collection("messages").add({thread:"general", text:Object.keys(byOwner).map(o => "@" + nameOf(o)).join(" ") + ` ${picks.length} posts are on the calendar for next month. Check yours and fix anything that's off.`, authorId:S.meId, mentions:Object.keys(byOwner), createdAt:now}); }catch(e){} }
@@ -330,10 +329,10 @@ function openPlanner(){
     out.replaceChildren(
       h("div",{class:"small"}, h("b",{}, `${plan.length} posts`), ` · about ${(ig / weeks).toFixed(1)} Instagram posts a week · already-planned posts are unchecked`),
       h("div",{class:"plan-scroll"}, h("table",{class:"tbl"},
-        h("thead",{}, h("tr",{}, h("th",{}), h("th",{},"Live"), h("th",{},"Post"), h("th",{},"Due"), h("th",{},"Owner"))),
+        h("thead",{}, h("tr",{}, h("th",{}), h("th",{},"Date"), h("th",{},"Post"), h("th",{},"Owner"))),
         h("tbody",{}, ...plan.map((p, i) => h("tr",{}, h("td",{}, boxes[i]), h("td",{class:"mono"}, `${parse(p.publishDate).toLocaleDateString("en-US",{weekday:"short"})} ${fmtShort(p.publishDate)} ${p.time}`),
           h("td",{}, h("div",{class:"row tight"}, h("span",{class:"pf sm", style:`--c:${BRANDS[p.brand].c}`}, icon(PLATFORMS[p.platform].icon, 12)), p.title), h("div",{class:"small muted"}, `${p.brand} · ${p.format} · ${GROUP[p.group]}`)),
-          h("td",{class:"mono"}, fmtShort(p.deadline)), h("td",{}, ownersFor(p).map(firstName).join(", "))))))),
+          h("td",{}, ownersFor(p).map(firstName).join(", "))))))),
       h("div",{class:"d-actions"}, h("span",{class:"small muted"},"You can still move any post on the calendar afterwards."), create));
     msg.textContent = "";
   }}, "Preview plan");
@@ -345,7 +344,7 @@ function openPlanner(){
     h("div",{class:"form-sec"}, "FoundHERs"),
     h("div",{class:"fields"}, field("Gathering date", fhIn), field("Interview reels", fhNSel)),
     h("div",{class:"form-sec"}, "Dates"),
-    h("div",{class:"fields"}, field("Plan from", startIn), field("Plan until", endIn), field("Production deadline", leadSel)),
+    h("div",{class:"fields"}, field("Plan from", startIn), field("Plan until", endIn)),
     h("dl",{class:"facts"}, h("div",{class:"wide"}, h("dt",{},"Owners (set automatically)"),
       h("dd",{}, OWNER_RULES.map(([l,, ids]) => `${l} → ${ids.map(id => teamById(id)?.name || id).join(", ")}`).join("  ·  ")))),
     preview, msg, out
