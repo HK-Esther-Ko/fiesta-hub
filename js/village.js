@@ -1,6 +1,6 @@
 // FIESTA village (experimental): everyone as a little pixel character on Home, dressed up from their profile.
 // To take it out: delete this file, its imports in home.js and team.js, and the "village" block in styles.css.
-import { S, db, h, isAdmin, realAdmin, teamSorted, teamById, toast, dbErr, openDrawer, closeDrawer } from "./core.js";
+import { S, db, h, avatar, emailOf, isAdmin, realAdmin, teamSorted, teamById, toast, dbErr, openDrawer, closeDrawer } from "./core.js";
 import { openChat, dmThread } from "./chat.js";
 
 /* ---------- sprite: 16 x 19 cells ---------- */
@@ -95,13 +95,25 @@ export function village(){
   if (!people.length) return null;
   const wrap = h("div",{class:"card vil"});
   wrap.innerHTML = SCENE;
-  wrap.append(h("div",{class:"vil-row"}, ...people.map((t, i) => {
-      const me = t.id === S.meId, first = (t.name || "").split(/\s+/)[0];
-      return h("button",{class:"vil-p" + (me ? " me" : ""), type:"button", style:`--i:${i}`, title:me ? "You · click to dress up" : `${t.name}${t.role ? " · " + t.role : ""} · click to message`,
-        onclick:() => me ? openCharacter() : S.meId && openChat(dmThread(S.meId, t.id))},
-        h("span",{class:"vil-bob"}, sprite(t)), h("span",{class:"vil-name"}, me ? "You" : first));
-    })));
+  wrap.append(h("div",{class:"vil-row"}, ...people.map(villager)));
   return wrap;
+}
+// keep the hover card inside the window for people near the left or right edge
+function fit(ev){
+  const pop = ev.currentTarget.querySelector(".face-pop"); pop.style.marginLeft = "0px";
+  const r = pop.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+  pop.style.marginLeft = (r.right > vw - 12 ? vw - 12 - r.right : r.left < 12 ? 12 - r.left : 0) + "px";
+}
+// one person: hover or tab to them for their role, email and a message button
+function villager(t, i){
+  const me = t.id === S.meId, mail = emailOf(t);
+  return h("div",{class:"vil-p" + (me ? " me" : ""), tabindex:"0", style:`--i:${i}`, onpointerenter:fit, onfocusin:fit},
+    h("span",{class:"vil-bob"}, sprite(t)), h("span",{class:"vil-name"}, me ? "You" : (t.name || "").split(/\s+/)[0]),
+    h("div",{class:"face-pop", role:"tooltip"},
+      h("div",{class:"row"}, avatar(t, "md"), h("div",{}, h("b",{}, t.name), h("div",{class:"small muted"}, t.role || "Team"))),
+      mail ? h("a",{class:"small", href:"mailto:" + mail}, mail) : null,
+      me ? h("button",{class:"btn sm", type:"button", onclick:openCharacter},"Dress up")
+        : S.meId ? h("button",{class:"btn sm", type:"button", onclick:() => openChat(dmThread(S.meId, t.id))},"Message") : null));
 }
 
 /* ---------- dress-up ---------- */

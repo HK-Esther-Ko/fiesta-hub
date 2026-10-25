@@ -732,7 +732,12 @@ a.mt-link:hover{border-color:var(--accent)}
 .v-leaf{fill:#4caf6a} .v-trunk{fill:#7a4632} .v-pole{fill:#6c707a} .v-flag{fill:var(--accent)}
 .v-grass{fill:var(--grass)} .v-path{fill:var(--path)}
 .vil-row{position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; align-items:flex-end; gap:clamp(4px, 2vw, 22px); padding:0 12px; overflow-x:auto; scrollbar-width:none}
-.vil-p{all:unset; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; flex:none}
+.vil-p{all:unset; position:relative; cursor:default; display:flex; flex-direction:column; align-items:center; gap:2px; flex:none}
+/* hover card over a villager (same card the old Team faces had); the scene must not clip it */
+.card.vil{overflow:visible} .vil-bg{border-radius:var(--r)} .vil-row{overflow:visible}
+.vil-p .face-pop{bottom:calc(100% + 4px); font-size:13px; font-weight:400; cursor:auto}
+.vil-p:hover .face-pop, .vil-p:focus-within .face-pop{visibility:visible; opacity:1; transition-delay:0s}
+.vil-p:hover, .vil-p:focus-within{z-index:6}
 .vil-p:focus-visible{outline:2px solid var(--accent); border-radius:8px}
 .vil-bob{display:block; animation:vil-bob 2.4s ease-in-out infinite; animation-delay:calc(var(--i) * -.37s)}
 .vil-p:hover .vil-bob{animation:vil-hop .5s ease-out infinite}
