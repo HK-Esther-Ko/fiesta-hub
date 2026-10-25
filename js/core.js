@@ -52,7 +52,6 @@ export function firstOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 
 export const safeUrl = u => /^https?:\/\//i.test(u || "") ? u : null;
 export const lines = s => String(s || "").split("\n").map(x => x.trim()).filter(Boolean);
 export const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-export const hourOf = t => { if (!t) return 99; if (/evening/i.test(t)) return 19.5; const m = String(t).match(/(\d+)(?::(\d+))?\s*(AM|PM)/i); return m ? (+m[1]) % 12 + (/pm/i.test(m[3]) ? 12 : 0) + (m[2] ? +m[2]/60 : 0) : 99; };
 export function relTime(iso){
   const diff = (Date.now() - new Date(iso)) / 60000;
   if (diff < 1) return "just now"; if (diff < 60) return `${Math.floor(diff)}m ago`; if (diff < 1440) return `${Math.floor(diff/60)}h ago`;
@@ -156,7 +155,6 @@ export function normItem(c){
   if (c.postUrl && !postUrls[platform]) postUrls[platform] = c.postUrl;
   return {...c, status, brand, platform, platforms, format:formats[platform], formats, postUrls};
 }
-export const formatText = c => c.platforms.map(p => c.formats[p]).join(" + ");
 export const whereText = c => c.platforms.map(p => p === "Newsletter" ? p : `${p} ${c.formats[p]}`).join(" + ");
 export const platformIcons = (c, size) => c.platforms.map(p => icon(PLATFORMS[p].icon, size));
 export const isPost = c => !NON_POST.has(c.type);

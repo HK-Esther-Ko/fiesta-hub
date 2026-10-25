@@ -1,6 +1,6 @@
 // Content calendar: what goes up, where and when. Each post has one date; what's coming up is listed under the grid.
 import { S, db, h, icon, isAdmin, realAdmin, registerView, renderMain, setView, save, ymd, parse, pad, today, addDays, daysUntil, fmt, fmtShort, monthName, firstOfMonth,
-  safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, datePill, formatText, whereText, platformIcons,
+  safeUrl, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, datePill, whereText, platformIcons,
   allEvents, meetingsBetween, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
 import { threadList, composer, updateThreads } from "./chat.js";
 import { prepSection } from "./requests.js";
@@ -22,12 +22,12 @@ function chip(c){
     h("span",{class:"ev-ic"}, ...platformIcons(c, 12)), h("span",{class:"ev-t"}, c.title), h("span",{class:"ev-o"}, ownerTag(c)));
 }
 
-// one week, Monday to Sunday, with every post's full title, time, format and owner (Calendar and Home)
+// one week, Monday to Sunday: each post as its platform icons, full title and a status dot (details on hover and in the drawer)
 export const weekDays = off => { const t0 = addDays(parse(today()), 7 * (off || 0)), mon = addDays(t0, -((t0.getDay() + 6) % 7)); return [...Array(7)].map((_, i) => ymd(addDays(mon, i))); };
 export function weekAgenda(list, off){
   const days = weekDays(off), meet = new Set(meetingsBetween(days[0], days[6])), evs = allEvents().filter(e => !S.brandOff.has(e.brand));
   return h("div",{class:"wa"}, ...days.map(d => {
-    const items = list.filter(c => c.publishDate === d).sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0) || hourOf(a.time) - hourOf(b.time));
+    const items = list.filter(c => c.publishDate === d).sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0));
     const dayEvs = evs.filter(e => e.date === d);
     return h("div",{class:"wa-day" + (d === today() ? " today" : d < today() ? " past" : "")},
       h("div",{class:"wa-h"}, h("span",{class:"wa-d"}, parse(d).toLocaleDateString("en-US",{weekday:"short"})), h("span",{class:"wa-n"}, parse(d).getDate()),
@@ -35,10 +35,11 @@ export function weekAgenda(list, off){
       h("div",{class:"wa-items"},
         meet.has(d) ? h("button",{class:"wa-ev meet", type:"button", onclick:() => openMeeting(d)}, icon("video", 13), h("span",{}, "Media team meeting", S.meetCfg?.time ? h("small",{}, S.meetCfg.time) : null)) : null,
         ...dayEvs.map(e => h("div",{class:"wa-ev", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, e.name)),
-        ...items.map(c => h("button",{class:`wa-post st-${c.status}` + (c.platform === "Newsletter" ? " nl" : "") + (isLate(c) ? " late" : ""), type:"button", style:`--c:${BRANDS[c.brand].c}`, onclick:() => openItem(c.id)},
-          h("span",{class:"wa-top"}, ...platformIcons(c, 13), h("span",{}, [c.time, formatText(c)].filter(Boolean).join(" · ")), h("span",{class:"wa-o"}, ownerTag(c))),
-          h("span",{class:"wa-t"}, c.title),
-          h("span",{class:"st st-" + c.status}, h("i",{}), isLate(c) ? "Past date" : statusLabel(c.status)))),
+        ...items.map(c => { const st = isLate(c) ? "Past date" : statusLabel(c.status);
+          return h("button",{class:`wa-post st-${c.status}` + (c.platform === "Newsletter" ? " nl" : "") + (isLate(c) ? " late" : ""), type:"button", style:`--c:${BRANDS[c.brand].c}`,
+            title:`${c.title} · ${whereText(c)} · ${st}`, onclick:() => openItem(c.id)},
+            h("span",{class:"wa-top"}, ...platformIcons(c, 13), h("i",{class:"wa-dot", "aria-hidden":"true"}), h("span",{class:"sr"}, st)),
+            h("span",{class:"wa-t"}, c.title)); }),
         !items.length && !meet.has(d) && !dayEvs.length ? h("div",{class:"wa-empty"},"Nothing planned") : null));
   }));
 }
@@ -47,7 +48,7 @@ function weekCard(items){
   const label = off === 0 ? "This week" : off === -1 ? "Last week" : off === 1 ? "Next week" : `Week of ${fmtShort(days[0])}`;
   const go = n => { S.weekOff = n; renderMain(); };
   return h("section",{class:"card week-card"},
-    h("div",{class:"card-h flat"}, h("div",{}, h("h3",{}, label), h("span",{class:"small muted"}, `${fmtShort(days[0])} – ${fmtShort(days[6])} · everything going live, in full`)),
+    h("div",{class:"card-h flat"}, h("div",{}, h("h3",{}, label), h("span",{class:"small muted"}, `${fmtShort(days[0])} – ${fmtShort(days[6])} · what goes up each day`)),
       h("div",{class:"seg"}, h("button",{type:"button", "aria-label":"Previous week", onclick:() => go(off - 1)},"‹"),
         h("button",{type:"button", onclick:() => go(0)},"This week"), h("button",{type:"button", "aria-label":"Next week", onclick:() => go(off + 1)},"›"))),
     weekAgenda(items, off));
@@ -58,7 +59,7 @@ function viewCalendar(){
   const start = new Date(y, mo, 1 - m.getDay());
   const items = visible(), byDay = {}, evDay = {};
   for (const c of items) if (c.publishDate) (byDay[c.publishDate] ||= []).push(c);
-  for (const k in byDay) byDay[k].sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0) || hourOf(a.time) - hourOf(b.time));
+  for (const k in byDay) byDay[k].sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0));
   for (const e of allEvents()) if (!S.brandOff.has(e.brand)) (evDay[e.date] ||= []).push(e);
   const meet = new Set(meetingsBetween(ymd(start), ymd(addDays(start, 41))));
   const weeks = Math.ceil((m.getDay() + new Date(y, mo + 1, 0).getDate()) / 7);
@@ -98,7 +99,7 @@ export function itemRow(c){
     h("div",{class:"when"}, statusPill(c.status), datePill(c)));
 }
 function upcomingSections(items){
-  const open = items.filter(c => !isDone(c) && c.publishDate).sort((a, b) => a.publishDate.localeCompare(b.publishDate) || hourOf(a.time) - hourOf(b.time));
+  const open = items.filter(c => !isDone(c) && c.publishDate).sort((a, b) => a.publishDate.localeCompare(b.publishDate));
   const past = open.filter(c => daysUntil(c.publishDate) < 0), week = open.filter(c => { const n = daysUntil(c.publishDate); return n >= 0 && n <= 7; });
   const later = open.filter(c => daysUntil(c.publishDate) > 7);
   return [
@@ -142,7 +143,7 @@ function platformRows(c, idp, canFormat){
 }
 function facts(c){
   return h("dl",{class:"facts"},
-    h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate) + (c.time ? " · " + c.time : ""), " ", datePill(c)] : "Not scheduled")),
+    h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate), " ", datePill(c)] : "Not scheduled")),
     h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${whereText(c)}`)),
     h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", "))),
     h("div",{class:"wide"}, h("dt",{},"Content"), h("dd",{style:"white-space:pre-wrap"}, c.notes || "No brief yet.")),
@@ -162,7 +163,7 @@ function discussion(c){
 export function openItem(id, day){
   const raw = id ? S.content.find(x => x.id === id) : null;
   if (id && !raw) return;
-  const c = normItem(raw || {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo", publishDate:day || ""});
+  const c = normItem(raw || {brand:"FIESTA", platform:"Instagram", format:"Carousel", status:"todo", publishDate:day || ""});
   if (!isAdmin() && ownersFor(c).includes(S.meId)){ openOwnItem(id, c); return; }
   if (!isAdmin()){
     openDrawer(c.title, [h("div",{class:"row"}, brandChip(c.brand), statusPill(c.status)), facts(c), prepSection(c), discussion(c)]);
@@ -172,7 +173,6 @@ export function openItem(id, day){
     title: input("it-title", c.title, {placeholder:"e.g. Founder Spotlight #3: Maidin"}),
     brand: select("it-brand", Object.keys(BRANDS), c.brand),
     publishDate: input("it-pub", c.publishDate, {type:"date"}),
-    time: input("it-time", c.time, {placeholder:"12 PM"}),
     notes: textarea("it-notes", c.notes, 4, "What the post says: featured founder, key points, caption draft…"),
     driveUrl: input("it-drive", c.driveUrl || c.finalUrl, {type:"url", placeholder:FILES_HINT})
   };
@@ -190,7 +190,7 @@ export function openItem(id, day){
   openDrawer(id ? "Edit post" : `New post · ${fmt(c.publishDate)}`, [
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("div",{class:"fields"},
-      field("Title", f.title, true), field("Brand", f.brand), id ? field("Date", f.publishDate) : null, field("Time", f.time),
+      field("Title", f.title, true), field("Brand", f.brand), id ? field("Date", f.publishDate) : null,
       h("div",{class:"field full"}, h("span",{class:"lbl"},"Platforms · format and post link for each"), plats.el, rows.el),
       h("div",{class:"field full"}, h("span",{class:"lbl"},"Owner"), ownerTxt),
       field("Content brief & caption", f.notes, true), field("Files", f.driveUrl, true)),
@@ -198,7 +198,7 @@ export function openItem(id, day){
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         const title = f.title.value.trim(); if (!title){ msg.textContent = "Give it a title."; return; }
         const list = plats.value, formats = rows.formats(list), postUrls = rows.urls(list);
-        const data = {title, brand:f.brand.value, platform:list[0], platforms:list, format:formats[list[0]], formats, publishDate:f.publishDate.value, time:f.time.value.trim(),
+        const data = {title, brand:f.brand.value, platform:list[0], platforms:list, format:formats[list[0]], formats, publishDate:f.publishDate.value,
           notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), postUrls, postUrl:postUrls[list[0]], status,
           ownerIds:ownersFor({platform:list[0], title, type:c.type}), updatedAt:new Date().toISOString()};
         try{ if (id) await db.collection("content").doc(id).update(data); else await db.collection("content").add({...data, createdAt:data.updatedAt});
@@ -223,7 +223,7 @@ function openOwnItem(id, c){
     h("div",{class:"row"}, brandChip(c.brand), h("span",{class:"pill"},"Your post")),
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("dl",{class:"facts"},
-      h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate) + (c.time ? " · " + c.time : ""), " ", datePill(c)] : "Not scheduled")),
+      h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate), " ", datePill(c)] : "Not scheduled")),
       h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${whereText(c)}`)),
       h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", ")))),
     h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Files", drive, true),
@@ -266,10 +266,10 @@ function spread(days, count, load){
 }
 function buildPlan({nSpot, nInt, winsDay, names, start, end, nextEvent, eventDate, fhDate, fhN}){
   const out = [], load = {};
-  const add = (group, brand, platform, format, d, time, title, type) => {
+  const add = (group, brand, platform, format, d, title, type) => {
     const key = typeof d === "string" ? d : ymd(d);
     if (platform === "Instagram") load[key] = (load[key] || 0) + 1;
-    out.push({group, brand, platform, format, type, publishDate:key, time, title});
+    out.push({group, brand, platform, format, type, publishDate:key, title});
   };
   const s = parse(start), e = parse(end);
   const range = (a, b) => { const r = []; for (let d = a; d <= b; d = addDays(d, 1)) r.push(d); return r; };
@@ -279,27 +279,27 @@ function buildPlan({nSpot, nInt, winsDay, names, start, end, nextEvent, eventDat
   const weekdays = range(s, lastFounderDay).filter(d => d.getDay() >= 1 && d.getDay() <= 5);
   // fixed-date posts first, so the spread can work around them
   const sat = win.find(d => d.getDay() === 6);
-  if (sat) add("recap","FIESTA","Instagram","Reel", sat, "11 AM", `${monthName(eventDate)} FIESTA Recap`, "Event recap");
+  if (sat) add("recap","FIESTA","Instagram","Reel", sat, `${monthName(eventDate)} FIESTA Recap`, "Event recap");
   let w = 0;
-  for (const d of win) if (d.getDay() === winsDay){ w++; add("wins","FIESTA","Instagram","Carousel", d, "3 PM", `Founder WINs #${w}`, "Founder WINs"); }
+  for (const d of win) if (d.getDay() === winsDay){ w++; add("wins","FIESTA","Instagram","Carousel", d, `Founder WINs #${w}`, "Founder WINs"); }
   for (const d of win){
     const nth = Math.ceil(d.getDate() / 7);
-    if (d.getDay() === 2 && (nth === 2 || nth === 4)) add("focus","FIESTA","Newsletter","Newsletter", d, "", "FIESTA FOCUS", "Newsletter");
-    if (d.getDay() === 5 && nth === 1) add("herald","FoundHERs","Newsletter","Newsletter", d, "", "FoundHERs HERald", "Newsletter");
+    if (d.getDay() === 2 && (nth === 2 || nth === 4)) add("focus","FIESTA","Newsletter","Newsletter", d, "FIESTA FOCUS", "Newsletter");
+    if (d.getDay() === 5 && nth === 1) add("herald","FoundHERs","Newsletter","Newsletter", d, "FoundHERs HERald", "Newsletter");
   }
   if (nextEvent){
     const ne = parse(nextEvent), mn = monthName(nextEvent);
     for (const [o, ti, fm] of [[-12, `${mn} FIESTA Promotion`, "Carousel"], [-5, `${mn} FIESTA Reminder`, "Story"], [-2, "Final FIESTA Reminder", "Story"]]){
-      const d = addDays(ne, o); if (d >= s) add("promo","FIESTA","Instagram", fm, d, "6 PM", ti, "Promotion");
+      const d = addDays(ne, o); if (d >= s) add("promo","FIESTA","Instagram", fm, d, ti, "Promotion");
     }
   }
   if (fhDate){
     const G = parse(fhDate), mn = monthName(fhDate);
-    const fh = (o, group, fm, time, title, type) => { const d = addDays(G, o); if (d >= s && d <= e) add(group, "FoundHERs", "Instagram", fm, d, time, title, type); };
-    fh(-6, "fhPromo", "Carousel", "6 PM", `${mn} Gathering Promotion`, "Promotion");
-    fh(0, "recap", "Reel", "Evening", `${mn} Gathering Recap`, "Event recap");
-    fh(6, "fhCarousel", "Carousel", "6 PM", "Gathering Carousel #1", "Gathering carousel");
-    fh(13, "fhCarousel", "Carousel", "6 PM", "Gathering Carousel #2", "Gathering carousel");
+    const fh = (o, group, fm, title, type) => { const d = addDays(G, o); if (d >= s && d <= e) add(group, "FoundHERs", "Instagram", fm, d, title, type); };
+    fh(-6, "fhPromo", "Carousel", `${mn} Gathering Promotion`, "Promotion");
+    fh(0, "recap", "Reel", `${mn} Gathering Recap`, "Event recap");
+    fh(6, "fhCarousel", "Carousel", "Gathering Carousel #1", "Gathering carousel");
+    fh(13, "fhCarousel", "Carousel", "Gathering Carousel #2", "Gathering carousel");
   }
   const tag = k => names[k] ? `: ${names[k]}` : "";
   // spotlights and interview reels share one even spread, interleaved in proportion (S I S S I …)
@@ -309,11 +309,11 @@ function buildPlan({nSpot, nInt, winsDay, names, start, end, nextEvent, eventDat
   }
   spread(weekdays, total, load).forEach((d, i) => {
     const k = +kinds[i].slice(1);
-    if (kinds[i][0] === "s") add("spotlight","FIESTA","Instagram","Carousel", d, "12 PM", `Founder Spotlight #${k + 1}${tag(k)}`, "Founder Spotlight");
-    else add("interview","FIESTA","Instagram","Reel", d, "6 PM", `Founder Interview #${k + 1}${tag(k)}`, "Interview reel");
+    if (kinds[i][0] === "s") add("spotlight","FIESTA","Instagram","Carousel", d, `Founder Spotlight #${k + 1}${tag(k)}`, "Founder Spotlight");
+    else add("interview","FIESTA","Instagram","Reel", d, `Founder Interview #${k + 1}${tag(k)}`, "Interview reel");
   });
-  spread(win.filter(d => d.getDay() >= 1 && d.getDay() <= 5), fhN, load).forEach((d, k) => add("fhInterview","FoundHERs","Instagram","Reel", d, "6 PM", `FoundHERs Founder Interview #${k + 1}`, "Interview reel"));
-  return out.sort((a, b) => a.publishDate.localeCompare(b.publishDate) || hourOf(a.time) - hourOf(b.time));
+  spread(win.filter(d => d.getDay() >= 1 && d.getDay() <= 5), fhN, load).forEach((d, k) => add("fhInterview","FoundHERs","Instagram","Reel", d, `FoundHERs Founder Interview #${k + 1}`, "Interview reel"));
+  return out.sort((a, b) => a.publishDate.localeCompare(b.publishDate));
 }
 function openPlanner(){
   const evs = allEvents(), fiestas = evs.filter(e => e.seriesId === "fiesta").sort((a, b) => a.date.localeCompare(b.date));
@@ -358,7 +358,7 @@ function openPlanner(){
       h("div",{class:"small"}, h("b",{}, `${plan.length} posts`), ` · about ${(ig / weeks).toFixed(1)} Instagram posts a week · already-planned posts are unchecked`),
       h("div",{class:"plan-scroll"}, h("table",{class:"tbl"},
         h("thead",{}, h("tr",{}, h("th",{}), h("th",{},"Date"), h("th",{},"Post"), h("th",{},"Owner"))),
-        h("tbody",{}, ...plan.map((p, i) => h("tr",{}, h("td",{}, boxes[i]), h("td",{class:"mono"}, `${parse(p.publishDate).toLocaleDateString("en-US",{weekday:"short"})} ${fmtShort(p.publishDate)} ${p.time}`),
+        h("tbody",{}, ...plan.map((p, i) => h("tr",{}, h("td",{}, boxes[i]), h("td",{class:"mono"}, `${parse(p.publishDate).toLocaleDateString("en-US",{weekday:"short"})} ${fmtShort(p.publishDate)}`),
           h("td",{}, h("div",{class:"row tight"}, h("span",{class:"pf sm", style:`--c:${BRANDS[p.brand].c}`}, icon(PLATFORMS[p.platform].icon, 12)), p.title), h("div",{class:"small muted"}, `${p.brand} · ${p.format} · ${GROUP[p.group]}`)),
           h("td",{}, ownersFor(p).map(firstName).join(", "))))))),
       h("div",{class:"d-actions"}, h("span",{class:"small muted"},"You can still move any post on the calendar afterwards."), create));

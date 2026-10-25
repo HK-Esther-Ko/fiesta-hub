@@ -676,12 +676,12 @@ main > .seg, .page-h + .seg{align-self:flex-start}
 .wa-post:hover{box-shadow:var(--shadow)} .wa-post:focus-visible{outline:2px solid var(--accent)}
 .wa-post.nl{box-shadow:inset 0 0 0 1.5px var(--c)}
 .wa-post.late{box-shadow:inset 0 0 0 1.5px var(--bad)}
-.wa-top{display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; color:var(--muted); min-width:0}
+.wa-top{display:flex; align-items:center; gap:4px; min-width:0}
 .wa-top .ic{color:var(--c)}
-.wa-o{margin-left:auto; flex:none}
+.wa-dot{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--st-todo); flex:none}
+.wa-post.st-doing .wa-dot{background:var(--st-doing)} .wa-post.st-published .wa-dot{background:var(--st-published)} .wa-post.late .wa-dot{background:var(--bad)}
 .wa-t{font-size:12.5px; font-weight:700; line-height:1.32; overflow-wrap:anywhere}
 .wa-post.st-published .wa-t{color:var(--muted)}
-.wa-post .st{font-size:10.5px} .wa-post .st i{width:7px; height:7px}
 .wa-empty{color:var(--muted); font-size:12px; padding:2px}
 .evt.meet{border:0; cursor:pointer; text-align:left; font-family:inherit}
 
