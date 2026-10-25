@@ -1,6 +1,5 @@
-// Media team meeting: one side drawer with the Meet call, the Meetings folder in Drive and that day's notes doc.
-import { S, db, h, icon, isAdmin, safeUrl, parse, fmt, fmtShort, nextMeeting, toast, dbErr, openDrawer, closeDrawer, field, input, select } from "./core.js";
-import { driveLink } from "./drive.js";
+// Media team meeting: one side drawer with the Meet call and that day's notes doc (anyone on the team can attach it).
+import { S, db, h, icon, isAdmin, safeUrl, fmt, fmtShort, nextMeeting, toast, dbErr, openDrawer, closeDrawer, field, input, select } from "./core.js";
 
 export const meetEvery = c => +c?.every === 7 ? "week" : +c?.every === 28 ? "4 weeks" : "2 weeks";
 
@@ -27,19 +26,19 @@ function tile(u, ic, title, sub){
 export function openMeeting(day){
   const c = S.meetCfg || {}, d = day || nextMeeting();
   if (!d){ if (isAdmin()) openMeetingSchedule(); return; }
-  const notes = c.notes || {}, folder = driveLink("meetings", parse(d).getFullYear());
-  const notesIn = input("mt-notes", notes[d], {type:"url", placeholder:"Google Doc with the agenda and notes"}), msg = h("div",{class:"cmp-status"});
+  const notes = c.notes || {};
+  const notesIn = input("mt-notes", notes[d], {type:"url", placeholder:"Paste the Google Docs link (Share → Copy link)"}), msg = h("div",{class:"cmp-status"});
   openDrawer("Media team meeting", [
     h("dl",{class:"facts"}, h("div",{}, h("dt",{},"When"), h("dd",{}, fmt(d) + (c.time ? " · " + c.time : ""))), h("div",{}, h("dt",{},"Repeats"), h("dd",{}, "Every " + meetEvery(c)))),
     h("div",{class:"mt-links"},
       tile(safeUrl(c.link), "video", "Join Google Meet", "The video call"),
-      tile(safeUrl(notes[d]), "sops", `Notes for ${fmtShort(d)}`, "This meeting's agenda and notes"),
-      tile(folder, "drive", "Meetings folder", "Every meeting's notes and recordings in Drive")),
-    isAdmin() ? h("div",{class:"form-sec"},"Admin") : null,
-    isAdmin() ? h("div",{class:"fields"}, field(`Notes doc for ${fmtShort(d)}`, notesIn, true)) : null,
-    isAdmin() ? h("div",{class:"d-actions"}, h("button",{class:"link", type:"button", onclick:openMeetingSchedule},"Edit schedule & Meet link"),
+      tile(safeUrl(notes[d]), "sops", `Meeting doc for ${fmtShort(d)}`, "Agenda and notes everyone can open")),
+    h("div",{class:"fields"}, field(`Meeting doc link for ${fmtShort(d)}`, notesIn, true)),
+    h("div",{class:"d-actions"}, isAdmin() ? h("button",{class:"link", type:"button", onclick:openMeetingSchedule},"Edit schedule & Meet link") : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
-        try{ await db.doc("config/meetings").set({...c, notes:{...notes, [d]:notesIn.value.trim()}}); closeDrawer(); toast("Saved."); }catch(e){ msg.textContent = dbErr(e); }
-      }},"Save")) : null, msg
+        const u = notesIn.value.trim();
+        if (u && !safeUrl(u)){ msg.textContent = "Paste a full link that starts with https://"; return; }
+        try{ await db.doc("config/meetings").update({notes:{[d]:u}}); closeDrawer(); toast(u ? "Meeting doc linked." : "Link removed."); }catch(e){ msg.textContent = dbErr(e); }
+      }},"Save link")), msg
   ]);
 }

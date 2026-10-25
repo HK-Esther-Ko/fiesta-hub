@@ -78,7 +78,7 @@ function meetingBar(){
   const c = S.meetCfg, link = safeUrl(c.link), n = daysUntil(d);
   return h("div",{class:"meet-bar"}, h("span",{class:"meet-ic"}, icon("video", 18)),
     h("div",{class:"meet-b"}, h("b",{},"Media team meeting"), h("span",{class:"muted"}, `${n === 0 ? "Today" : n === 1 ? "Tomorrow" : fmt(d)}${c.time ? " · " + c.time : ""} · every ${meetEvery(c)}`)),
-    h("button",{class:"btn sm", type:"button", onclick:() => openMeeting(d)},"Notes & Drive"),
+    h("button",{class:"btn sm", type:"button", onclick:() => openMeeting(d)},"Meeting doc"),
     link ? h("a",{class:"btn sm primary", href:link, target:"_blank", rel:"noopener"},"Join Google Meet") : null);
 }
 // a clear band between Home sections

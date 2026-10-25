@@ -42,6 +42,10 @@ service cloud.firestore {
       allow update: if isMember() && myTeam() in owners(resource.data) && owners(request.resource.data) == owners(resource.data);
       allow delete: if isMember() && owners(resource.data) == [myTeam()];
     }
+    // media team meeting: anyone on the team can attach a meeting's notes doc link
+    match /config/meetings {
+      allow update: if isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notes']);
+    }
     // chat: anyone on the team can post and start group chats
     match /messages/{id} {
       allow create: if isMember() && request.resource.data.authorId == myTeam();

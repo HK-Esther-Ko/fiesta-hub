@@ -29,7 +29,6 @@ function years(){
 const curYear = () => years().includes(S.driveYear) ? S.driveYear : Math.max(FIRST_YEAR, Math.min(new Date().getFullYear(), years().slice(-1)[0]));
 // links saved before years existed count as 2026
 const linkFor = (k, fixed, y) => fixed ? S.links[k] : (S.links[`${k}@${y}`] || (y === FIRST_YEAR ? S.links[k] : ""));
-export const driveLink = (k, y) => safeUrl(linkFor(k, false, y));
 
 // the whole marketing Drive: a banner above the shortcuts. Admins see an "add link" prompt until it's set
 function allDrive(y){
