@@ -2,6 +2,7 @@
 import { S, db, h, icon, avatar, isAdmin, realAdmin, registerView, renderMain, save, lines, teamById, teamSorted, nameOf, byPeopleOrder, BRANDS, seriesById,
   toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, resizeImage, blobToDataUrl } from "./core.js";
 import { setAccess } from "../firebase.js";
+import { sprite, openCharacter } from "./village.js";
 
 const AREAS = [["Lead","FIESTA leadership"],["Media","Media team"],["After the event","After the event"]];
 const GROUPS = [["leadership","FIESTA leadership"],["media","Media team"]];
@@ -132,6 +133,8 @@ export function openProfile(first){
     first ? h("p",{style:"margin:0"},"Add your name and a photo so teammates know who's who.") : null,
     ph.el,
     h("div",{class:"fields"}, field("Name", name, true), field("Contact email", mail, true)),
+    first ? null : h("div",{class:"dress-row"}, sprite(t, "md"), h("div",{}, h("b",{},"My FIESTA character"), h("div",{class:"small muted"},"You in the village on Home")),
+      h("button",{class:"btn sm", type:"button", onclick:openCharacter},"Dress up")),
     h("dl",{class:"facts"}, h("div",{}, h("dt",{},"Title"), h("dd",{}, t.role || "—")), h("div",{}, h("dt",{},"Signed in as"), h("dd",{}, pv ? t.email || "their Google email" : S.myEmail))),
     h("p",{class:"small muted", style:"margin:0"},"Your title and role are set by an admin."),
     h("div",{class:"d-actions"}, first ? h("button",{class:"btn ghost", type:"button", onclick:closeDrawer},"Later") : h("span",{}),

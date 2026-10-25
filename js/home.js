@@ -1,29 +1,18 @@
-// Home: this month's KPIs, this week's content, my work, and quick team / channel glances.
-import { S, db, h, icon, avatar, isAdmin, registerView, setView, ymd, parse, today, addDays, daysUntil, fmt, fmtShort, safeUrl, nextMeeting, BRANDS, PLATFORMS, posts, isDone,
-  ownersFor, nameOf, initials, emailOf, teamSorted, isMyTask, meetingsBetween, allEvents, toast, dbErr, openDrawer, closeDrawer, field, input, select, card, linkBtn } from "./core.js";
-import { openItem } from "./calendar.js";
+// Home: the FIESTA village, this month's KPIs, this week's content, my work, and quick team / channel glances.
+import { S, h, icon, avatar, isAdmin, registerView, setView, ymd, parse, today, addDays, daysUntil, fmt, fmtShort, safeUrl, nextMeeting, BRANDS, PLATFORMS, posts, isDone,
+  ownersFor, emailOf, teamSorted, isMyTask, card, linkBtn } from "./core.js";
+import { openItem, weekAgenda } from "./calendar.js";
 import { openTask, taskRow } from "./requests.js";
 import { kpiRows, change, num, signed, monthLabel } from "./analytics.js";
 import { CHANNELS, channelUrl } from "./drive.js";
 import { openChat, dmThread } from "./chat.js";
+import { openMeeting, openMeetingSchedule, meetEvery } from "./meeting.js";
+import { village, openCharacter } from "./village.js";
 
 function ring(done, total){
   const r = 30, c = 2 * Math.PI * r, p = total ? done / total : 0, el = h("div",{class:"ring"});
   el.innerHTML = `<svg viewBox="0 0 76 76" width="76" height="76" aria-hidden="true"><circle cx="38" cy="38" r="${r}" class="ring-bg"/><circle cx="38" cy="38" r="${r}" class="ring-fg" stroke-dasharray="${(c*p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 38 38)"/></svg>`;
   el.append(h("div",{class:"ring-n"}, total ? `${Math.round(p * 100)}%` : "—")); return el;
-}
-export function openMeetingSchedule(){
-  const c = S.meetCfg || {};
-  const anchor = input("ms-anchor", c.anchor, {type:"date"}), every = select("ms-every", [["7","Every week"],["14","Every 2 weeks"],["28","Every 4 weeks"]], String(c.every || 14));
-  const time = input("ms-time", c.time, {placeholder:"e.g. 2–2:30 PM"}), link = input("ms-link", c.link, {type:"url", placeholder:"Meet / Zoom link"});
-  const msg = h("div",{class:"cmp-status"});
-  openDrawer("Media team meeting", [
-    h("div",{class:"fields"}, field("A meeting date", anchor), field("Repeats", every), field("Time", time), field("Link", link, true)),
-    h("div",{class:"d-actions"}, msg, h("button",{class:"btn primary", type:"button", onclick:async () => {
-      if (!anchor.value){ msg.textContent = "Pick a meeting date."; return; }
-      try{ await db.doc("config/meetings").set({anchor:anchor.value, every:+every.value, time:time.value.trim(), link:link.value.trim()}); closeDrawer(); toast("Saved."); }catch(e){ msg.textContent = dbErr(e); }
-    }},"Save"))
-  ]);
 }
 const short = v => v == null ? "—" : Math.abs(v) >= 10000 ? `${(v / 1000).toFixed(0)}K` : Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(Math.round(v));
 // shared hover tooltip for the small charts: month + value
@@ -87,7 +76,11 @@ function reachCard(rows){
 // a teammate's face; hover or tab to it for their role, email and a message button
 function face(t){
   const mail = emailOf(t);
-  return h("div",{class:"face", tabindex:"0"}, avatar(t, "md"), h("span",{}, (t.name || "").split(/\s+/)[0]),
+  // keep the card inside the window for faces near the right or left edge
+  const fit = ev => { const pop = ev.currentTarget.querySelector(".face-pop"); pop.style.marginLeft = "0px";
+    const r = pop.getBoundingClientRect(), vw = document.documentElement.clientWidth;
+    pop.style.marginLeft = (r.right > vw - 12 ? vw - 12 - r.right : r.left < 12 ? 12 - r.left : 0) + "px"; };
+  return h("div",{class:"face", tabindex:"0", onpointerenter:fit, onfocusin:fit}, avatar(t, "md"), h("span",{}, (t.name || "").split(/\s+/)[0]),
     h("div",{class:"face-pop", role:"tooltip"}, h("div",{class:"row"}, avatar(t, "md"), h("div",{}, h("b",{}, t.name), h("div",{class:"small muted"}, t.role || "Team"))),
       mail ? h("a",{class:"small", href:"mailto:" + mail}, mail) : null,
       t.id !== S.meId ? h("button",{class:"btn sm", type:"button", onclick:() => openChat(dmThread(S.meId, t.id))},"Message") : null));
@@ -96,28 +89,20 @@ function face(t){
 function meetingBar(){
   const d = nextMeeting(); if (!d || d !== today()) return null;
   const c = S.meetCfg, link = safeUrl(c.link), n = daysUntil(d);
-  return h("div",{class:"meet-bar"}, h("span",{class:"meet-ic"}, icon("calendar", 18)),
-    h("div",{class:"meet-b"}, h("b",{},"Media team meeting"), h("span",{class:"muted"}, `${n === 0 ? "Today" : n === 1 ? "Tomorrow" : fmt(d)}${c.time ? " · " + c.time : ""} · every ${+c.every === 7 ? "week" : +c.every === 28 ? "4 weeks" : "2 weeks"}`)),
-    link ? h("a",{class:"btn sm primary", href:link, target:"_blank", rel:"noopener"},"Join Google Meet") : null,
-    isAdmin() ? h("button",{class:"link", type:"button", onclick:openMeetingSchedule},"Edit") : null);
+  return h("div",{class:"meet-bar"}, h("span",{class:"meet-ic"}, icon("video", 18)),
+    h("div",{class:"meet-b"}, h("b",{},"Media team meeting"), h("span",{class:"muted"}, `${n === 0 ? "Today" : n === 1 ? "Tomorrow" : fmt(d)}${c.time ? " · " + c.time : ""} · every ${meetEvery(c)}`)),
+    h("button",{class:"btn sm", type:"button", onclick:() => openMeeting(d)},"Notes & Drive"),
+    link ? h("a",{class:"btn sm primary", href:link, target:"_blank", rel:"noopener"},"Join Google Meet") : null);
 }
 // a clear band between Home sections
 const section = (title, sub, action, ...body) => h("section",{class:"home-sec"},
   h("div",{class:"home-sec-h"}, h("div",{}, h("h2",{}, title), sub ? h("p",{}, sub) : null), action || null), ...body);
-function weekStrip(){
-  const t0 = parse(today()), mon = addDays(t0, -((t0.getDay() + 6) % 7));
-  const days = [...Array(7)].map((_, i) => ymd(addDays(mon, i)));
-  const all = posts(), meet = new Set(meetingsBetween(days[0], days[6])), evs = allEvents();
-  return h("div",{class:"week"}, ...days.map(d => {
-    const items = all.filter(c => c.publishDate === d).sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0));
-    return h("div",{class:"wk" + (d === today() ? " today" : "")},
-      h("div",{class:"wk-h"}, h("span",{class:"wk-d"}, parse(d).toLocaleDateString("en-US",{weekday:"short"})), h("span",{class:"wk-n"}, parse(d).getDate())),
-      meet.has(d) ? h("div",{class:"wk-ev meet"}, "Media team meeting") : null,
-      ...evs.filter(e => e.date === d).map(e => h("div",{class:"wk-ev", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, e.name)),
-      ...items.map(c => h("button",{class:"wk-post st-" + c.status + (c.platform === "Newsletter" ? " nl" : ""), type:"button", style:`--c:${BRANDS[c.brand].c}`, title:c.title, onclick:() => openItem(c.id)},
-        icon(PLATFORMS[c.platform].icon, 12), h("span",{class:"wk-t"}, c.title), h("span",{class:"wk-o"}, ownersFor(c).map(id => initials(nameOf(id))).join("+")))),
-      !items.length && !meet.has(d) ? h("div",{class:"wk-empty"}, "—") : null);
-  }));
+// "FIESTA website" → FIESTA / Website, so every tile reads brand first
+function chanTile([key, label, u]){
+  const [brand, ...kind] = label.split(" "), fh = /foundhers/i.test(key);
+  return h("a",{class:"chan-btn", href:u, target:"_blank", rel:"noopener", style:`--c:var(--${fh ? "foundhers" : "fiesta"})`},
+    h("span",{class:"chan-ic"}, icon(/^ig/.test(key) ? "instagram" : /^li/.test(key) ? "linkedin" : "link", 16)),
+    h("span",{class:"chan-l"}, h("b",{}, brand), h("span",{}, kind.join(" ").replace(/^./, x => x.toUpperCase()))), h("span",{class:"chan-go", "aria-hidden":"true"},"↗"));
 }
 function viewHome(){
   const me = S.team.find(t => t.id === S.meId);
@@ -132,10 +117,11 @@ function viewHome(){
     h("div",{class:"hello"}, h("h1",{}, `Hi ${me.name.split(/\s+/)[0]}`),
       h("p",{}, open.length || myPosts.length ? `${open.length} open task${open.length === 1 ? "" : "s"} and ${myPosts.length} post${myPosts.length === 1 ? "" : "s"} due this week.` : "You're all caught up.")),
     meetingBar(),
+    section("FIESTA village", "Everyone on the team. Click yourself to dress up, or a teammate to message them.", linkBtn("Dress up my character", openCharacter), village()),
     section("Performance", rows.length ? `Instagram · ${monthLabel(rows[rows.length - 1].id, true)}${rows.length > 1 ? " vs " + monthLabel(rows[rows.length - 2].id) : ""}` : "Instagram · add this month's numbers on Analytics",
       linkBtn("Open analytics", () => setView("analytics")), kpiStrip(rows), reachCard(rows)),
     section("This week", "What goes live Monday to Sunday", h("div",{class:"row tight"}, isAdmin() ? linkBtn("Meeting schedule", openMeetingSchedule) : null, linkBtn("Open calendar", () => setView("calendar"))),
-      h("div",{class:"card week-card"}, weekStrip())),
+      h("div",{class:"card week-card"}, weekAgenda(posts(), 0))),
     section("My work & team", null, null, h("div",{class:"grid2"},
       card("My work", linkBtn("+ Add my task", () => openTask(null)),
         h("div",{class:"work"}, ring(doneRecent, doneRecent + open.length), h("div",{}, h("div",{class:"big"}, open.length), h("div",{class:"muted small"}, `open · ${doneRecent} done in the last 30 days`))),
@@ -143,8 +129,8 @@ function viewHome(){
         open.length > 4 ? h("div",{class:"more"}, linkBtn(`See all ${open.length}`, () => { S.reqFilter = "mine"; setView("requests"); })) : null),
       h("div",{class:"stack"},
         card("Our channels", null,
-          h("div",{class:"chan"}, ...chans.map(([key, label, u]) => h("a",{class:"chan-btn", href:u, target:"_blank", rel:"noopener"}, icon(/^ig/.test(key) ? "instagram" : /^li/.test(key) ? "linkedin" : "link", 16), label))),
-          published.length ? h("div",{class:"list"}, h("div",{class:"lbl pad-x"},"Recently published"), ...published.map(c => h("button",{class:"item slim", type:"button", onclick:() => openItem(c.id)},
+          h("div",{class:"chan"}, ...chans.map(chanTile)),
+          published.length ? h("div",{class:"list chan-recent"}, h("div",{class:"lbl pad-x"},"Recently published"), ...published.map(c => h("button",{class:"item slim", type:"button", onclick:() => openItem(c.id)},
             h("span",{class:"pf", style:`--c:${BRANDS[c.brand].c}`}, icon(PLATFORMS[c.platform].icon, 14)), h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.platform} · ${fmtShort(c.publishDate)}`))))) : null),
         card("Team", linkBtn("View all", () => { S.teamTab = "roles"; setView("team"); }),
           h("div",{class:"faces"}, ...teamSorted().map(face))))))

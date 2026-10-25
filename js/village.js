@@ -1,0 +1,134 @@
+// FIESTA village (experimental): everyone as a little pixel character on Home, dressed up from their profile.
+// To take it out: delete this file, its imports in home.js and team.js, and the "village" block in styles.css.
+import { S, db, h, isAdmin, realAdmin, teamSorted, teamById, toast, dbErr, openDrawer, closeDrawer } from "./core.js";
+import { openChat, dmThread } from "./chat.js";
+
+/* ---------- sprite: 16 x 19 cells ---------- */
+// o outline · e eye · s skin · c cheek · h hair · t top · w collar · k tie · p trousers
+const BASE = [
+  "................",
+  "................",
+  "................",
+  "...oooooooooo...",
+  "..ohhhhhhhhhho..",
+  ".ohhhhhhhhhhhho.",
+  ".ohhhhhhhhhhhho.",
+  ".ohssssssssssho.",
+  ".osssessssessso.",
+  ".osssessssessso.",
+  ".osccssssssccso.",
+  ".osssssssssssso.",
+  "..oooooooooooo..",
+  "..otttwkkwttto..",
+  ".osttttkkttttso.",
+  "..otttttttttto..",
+  "..oppppppppppo..",
+  "..oppppooppppo..",
+  "..ooooo..ooooo.."
+];
+// hair styles replace whole rows; bob and long add hair down both sides of the face
+const side = face => "oh" + face + "ho";
+const FRAME = {7:side("hssssssssssh"), 8:side("sssessssesss"), 9:side("sssessssesss"), 10:side("sccssssssccs"), 11:side("ssssssssssss")};
+const HAIR = {
+  short:{},
+  side:{6:".o" + "hhhhhhhssshh" + "o."},
+  bob:{...FRAME, 12:".oooooooooooooo."},
+  long:{...FRAME, 12:"oh" + "oooooooooooo" + "ho", 13:"oho" + "tttwkkwttt" + "oho", 14:"ohs" + "ttttkktttt" + "sho", 15:".oo" + "tttttttttt" + "oo."},
+  bun:{0:"......oooo......", 1:".....ohhhho.....", 2:".....ohhhho....."}
+};
+// accessories paint over the sprite ("." leaves the cell alone)
+const ACC = {
+  none:{},
+  glasses:{7:"....ggg..ggg....", 8:"....g.gggg.g....", 9:"....g.g..g.g....", 10:"....ggg..ggg...."},
+  camera:{14:".....mmmmmm.....", 15:".....mmLLmm....."},
+  bow:{2:"..........b.b...", 3:"..........bbb...", 4:"..........b.b..."},
+  cap:{2:"...oooooooooo...", 3:"..obbbbbbbbbbo..", 4:".obbbbbbbbbbbbo.", 5:".obbbbbbbbbbbbbo"}
+};
+export const LOOK = {
+  hair:[["short","Short"],["side","Side part"],["bob","Bob"],["long","Long"],["bun","Bun"]],
+  hairColor:["#2b2630","#4a2f2a","#7a4632","#a0522d","#c98e45","#3b3a6b","#e1578c"],
+  skin:["#f8d9bd","#f0c39c","#dca27c","#b97a52","#86553a"],
+  top:["#ea7136","#e1578c","#1d5075","#2f8a57","#5b4a8a","#8d8f99","#2b2d3a"],
+  tie:[["tie","Tie"],["none","No tie"]],
+  acc:[["none","None"],["glasses","Glasses"],["camera","Camera"],["bow","Bow"],["cap","Cap"]]
+};
+function hash(s){ let x = 7; for (const ch of s || "?") x = (x * 31 + ch.charCodeAt(0)) >>> 0; return x; }
+// people who haven't picked yet still get a steady, unique-ish look
+export function lookOf(t){
+  const n = hash(t?.id || t?.name), pick = (arr, k) => arr[(n >> k) % arr.length];
+  const auto = {hair:pick(LOOK.hair, 1)[0], hairColor:pick(LOOK.hairColor.slice(0, 5), 4), skin:pick(LOOK.skin.slice(0, 3), 7), top:pick(LOOK.top, 10), tie:"tie", acc:"none"};
+  return {...auto, ...(t?.pixel || {})};
+}
+function grid(L){
+  const g = BASE.slice();
+  for (const [r, s] of Object.entries(HAIR[L.hair] || {})) g[r] = s;
+  return g.map((row, r) => { const o = (ACC[L.acc] || {})[r]; return o ? [...row].map((ch, i) => o[i] !== "." ? o[i] : ch).join("") : row; });
+}
+export function sprite(t, cls, look){
+  const L = look || lookOf(t);
+  const tie = L.top === "#1d5075" ? "#ea7136" : "#1d5075";
+  const C = {o:"#2a2233", e:"#2a2233", g:"#2a2233", s:L.skin, c:"#f59aa5", h:L.hairColor, t:L.top, w:"#ffffff", k:L.tie === "none" ? L.top : tie,
+    p:"#3a3346", m:"#2b2d3a", L:"#7fb4ff", b:L.acc === "cap" ? "#ea7136" : "#e1578c"};
+  // one rect per horizontal run of the same color keeps the svg small
+  let rects = "";
+  grid(L).forEach((row, y) => { for (let x = 0; x < 16;){ const ch = row[x]; let w = 1; while (x + w < 16 && row[x + w] === ch) w++;
+    if (C[ch]) rects += `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${C[ch]}"/>`; x += w; } });
+  const el = h("span",{class:"px" + (cls ? " " + cls : ""), "aria-hidden":"true"});
+  el.innerHTML = `<svg viewBox="0 0 16 19" shape-rendering="crispEdges">${rects}</svg>`;
+  return el;
+}
+
+/* ---------- the village on Home ---------- */
+const SCENE = `<svg class="vil-bg" viewBox="0 0 320 90" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges" aria-hidden="true">
+  <rect class="v-sun" x="276" y="10" width="12" height="12"/>
+  <g class="v-cloud"><rect x="34" y="14" width="26" height="6"/><rect x="40" y="10" width="12" height="4"/></g>
+  <g class="v-cloud"><rect x="176" y="22" width="20" height="5"/><rect x="181" y="18" width="9" height="4"/></g>
+  <g transform="translate(18 44)"><rect class="v-roof" x="0" y="0" width="34" height="6"/><rect class="v-roof" x="4" y="-5" width="26" height="5"/><rect class="v-wall" x="3" y="6" width="28" height="20"/><rect class="v-door" x="14" y="14" width="7" height="12"/><rect class="v-win" x="6" y="10" width="5" height="5"/><rect class="v-win" x="23" y="10" width="5" height="5"/></g>
+  <g transform="translate(232 38)"><rect class="v-roof2" x="0" y="0" width="40" height="7"/><rect class="v-roof2" x="5" y="-6" width="30" height="6"/><rect class="v-wall" x="3" y="7" width="34" height="25"/><rect class="v-door" x="16" y="18" width="8" height="14"/><rect class="v-win" x="7" y="12" width="6" height="6"/><rect class="v-win" x="27" y="12" width="6" height="6"/></g>
+  <g transform="translate(70 46)"><rect class="v-leaf" x="0" y="0" width="14" height="14"/><rect class="v-leaf" x="3" y="-4" width="8" height="4"/><rect class="v-trunk" x="5" y="14" width="4" height="10"/></g>
+  <g transform="translate(212 52)"><rect class="v-leaf" x="0" y="0" width="10" height="10"/><rect class="v-trunk" x="3" y="10" width="4" height="8"/></g>
+  <g transform="translate(120 36)"><rect class="v-pole" x="0" y="0" width="2" height="34"/><rect class="v-flag" x="2" y="1" width="18" height="9"/></g>
+  <rect class="v-grass" x="0" y="70" width="320" height="20"/><rect class="v-path" x="0" y="74" width="320" height="6"/>
+</svg>`;
+export function village(){
+  const people = teamSorted();
+  if (!people.length) return null;
+  const wrap = h("div",{class:"card vil"});
+  wrap.innerHTML = SCENE;
+  wrap.append(h("div",{class:"vil-row"}, ...people.map((t, i) => {
+      const me = t.id === S.meId, first = (t.name || "").split(/\s+/)[0];
+      return h("button",{class:"vil-p" + (me ? " me" : ""), type:"button", style:`--i:${i}`, title:me ? "You · click to dress up" : `${t.name}${t.role ? " · " + t.role : ""} · click to message`,
+        onclick:() => me ? openCharacter() : S.meId && openChat(dmThread(S.meId, t.id))},
+        h("span",{class:"vil-bob"}, sprite(t)), h("span",{class:"vil-name"}, me ? "You" : first));
+    })));
+  return wrap;
+}
+
+/* ---------- dress-up ---------- */
+export function openCharacter(){
+  const t = teamById(S.meId);
+  if (!t){ toast("Your account isn't linked to a team card yet. Ask an admin."); return; }
+  const L = lookOf(t), preview = h("div",{class:"dress-prev"});
+  const paint = () => preview.replaceChildren(sprite(t, "xl", L));
+  const group = (label, key, opts, swatch) => {
+    const btns = opts.map(o => { const v = Array.isArray(o) ? o[0] : o;
+      const b = h("button",{type:"button", class:swatch ? "sw" : "sw-opt", "aria-pressed":String(L[key] === v), "aria-label":Array.isArray(o) ? o[1] : v, title:Array.isArray(o) ? o[1] : null,
+        style:swatch ? `--c:${v}` : null, onclick:() => { L[key] = v; btns.forEach(x => x.setAttribute("aria-pressed", String(x === b))); paint(); }},
+        swatch ? null : (key === "hair" || key === "acc" ? [sprite(t, "sm", {...L, [key]:v}), o[1]] : o[1]));
+      return b; });
+    return h("div",{class:"dress-g"}, h("span",{class:"lbl"}, label), h("div",{class:"dress-opts"}, ...btns));
+  };
+  paint();
+  const msg = h("div",{class:"cmp-status"});
+  openDrawer("My FIESTA character", [
+    h("p",{class:"muted", style:"margin:0"},"This is you in the FIESTA village on Home."),
+    preview,
+    group("Hair", "hair", LOOK.hair), group("Hair color", "hairColor", LOOK.hairColor, true), group("Skin", "skin", LOOK.skin, true),
+    group("Outfit", "top", LOOK.top, true), group("Tie", "tie", LOOK.tie), group("Extra", "acc", LOOK.acc),
+    h("div",{class:"d-actions"}, h("span",{}), h("button",{class:"btn primary", type:"button", onclick:async () => {
+      if (realAdmin() && S.preview){ closeDrawer(); toast("Preview: nothing was saved."); return; }
+      try{ await db.collection("team").doc(t.id).update({pixel:{...L}}); closeDrawer(); toast("Looking good!"); }
+      catch(e){ msg.textContent = e?.code === "permission-denied" && !isAdmin() ? "Couldn't save yet: an admin needs to publish the updated database rules." : dbErr(e); }
+    }},"Save")), msg
+  ]);
+}

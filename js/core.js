@@ -10,7 +10,7 @@ export const S = {
   meetCfg:null, access:null, myEmail:"", myAllowed:null, googleName:"", meId:"",
   view: tabLoad("hub.view") || "home", month: firstOfMonth(new Date()), dbState:"loading",
   brandOff:new Set(), platformOff:new Set(), teamTab: load("hub.teamTab") || "chart", chartId: "fiesta",
-  sopOpen:"", reqFilter:"all", kpiMonth:"", kpiCompare:"", kpiPlatform:"instagram"
+  sopOpen:"", reqFilter:"all", reqView: load("hub.reqView") || "people", weekOff:0, kpiMonth:"", kpiCompare:"", kpiPlatform:"instagram"
 };
 // admins can preview the site as a team member (optionally as a specific person); UI only, kept per browser tab
 S.preview = (() => { try{ return JSON.parse(sessionStorage.getItem("hub.preview") || "null"); }catch(e){ return null; } })();
@@ -90,7 +90,8 @@ const ICONS = {
   dollar:"M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
   close:"M18 6 6 18M6 6l12 12",
   link:"M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
-  user:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
+  user:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+  video:"M15 10l6-4v12l-6-4M3 6h12v12H3z"
 };
 export function icon(name, size){
   const s = document.createElement("span"); s.className = "ic"; s.setAttribute("aria-hidden", "true");

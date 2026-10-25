@@ -4,7 +4,7 @@ rules_version = '2';
 //
 // Levels (set by admins on the Access page; people can't change their own):
 //   admin  → edits everything: calendar, roles, SOPs, analytics, links, access, and assigns requests
-//   member → reads everything; edits only their own profile (name, photo, contact email),
+//   member → reads everything; edits only their own profile (name, photo, contact email, pixel character),
 //            their own tasks, chat, and the working fields of calendar posts they own
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -25,10 +25,10 @@ service cloud.firestore {
     match /allowed/{e} {
       allow read: if signedIn() && e == email();
     }
-    // your own team card: name, photo and contact email only
+    // your own team card: name, photo, contact email and pixel character only
     match /team/{id} {
       allow update: if isMember() && id == myTeam()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photo', 'contactEmail']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photo', 'contactEmail', 'pixel']);
     }
     // calendar posts: the people a post belongs to (ownerIds) update its progress, brief, folder and finished file
     match /content/{id} {

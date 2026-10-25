@@ -4,6 +4,7 @@ import { S, db, h, icon, isAdmin, realAdmin, registerView, renderMain, setView, 
   allEvents, meetingsBetween, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
 import { threadList, composer, updateThreads } from "./chat.js";
 import { prepSection } from "./requests.js";
+import { openMeeting } from "./meeting.js";
 
 const visible = () => posts().filter(c => !S.brandOff.has(c.brand) && !S.platformOff.has(c.platform));
 const ownerTag = c => ownersFor(c).map(id => initials(nameOf(id))).join(" + ");
@@ -21,6 +22,37 @@ function chip(c){
     icon(PLATFORMS[c.platform].icon, 12), h("span",{class:"ev-t"}, c.title), h("span",{class:"ev-o"}, ownerTag(c)));
 }
 
+// one week, Monday to Sunday, with every post's full title, time, format and owner (Calendar and Home)
+export const weekDays = off => { const t0 = addDays(parse(today()), 7 * (off || 0)), mon = addDays(t0, -((t0.getDay() + 6) % 7)); return [...Array(7)].map((_, i) => ymd(addDays(mon, i))); };
+export function weekAgenda(list, off){
+  const days = weekDays(off), meet = new Set(meetingsBetween(days[0], days[6])), evs = allEvents().filter(e => !S.brandOff.has(e.brand));
+  return h("div",{class:"wa"}, ...days.map(d => {
+    const items = list.filter(c => c.publishDate === d).sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0) || hourOf(a.time) - hourOf(b.time));
+    const dayEvs = evs.filter(e => e.date === d);
+    return h("div",{class:"wa-day" + (d === today() ? " today" : d < today() ? " past" : "")},
+      h("div",{class:"wa-h"}, h("span",{class:"wa-d"}, parse(d).toLocaleDateString("en-US",{weekday:"short"})), h("span",{class:"wa-n"}, parse(d).getDate()),
+        d === today() ? h("span",{class:"wa-today"},"Today") : null),
+      h("div",{class:"wa-items"},
+        meet.has(d) ? h("button",{class:"wa-ev meet", type:"button", onclick:() => openMeeting(d)}, icon("video", 13), h("span",{}, "Media team meeting", S.meetCfg?.time ? h("small",{}, S.meetCfg.time) : null)) : null,
+        ...dayEvs.map(e => h("div",{class:"wa-ev", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, e.name)),
+        ...items.map(c => h("button",{class:`wa-post st-${c.status}` + (c.platform === "Newsletter" ? " nl" : "") + (isLate(c) ? " late" : ""), type:"button", style:`--c:${BRANDS[c.brand].c}`, onclick:() => openItem(c.id)},
+          h("span",{class:"wa-top"}, icon(PLATFORMS[c.platform].icon, 13), h("span",{}, [c.time, c.format].filter(Boolean).join(" · ")), h("span",{class:"wa-o"}, ownerTag(c))),
+          h("span",{class:"wa-t"}, c.title),
+          h("span",{class:"st st-" + c.status}, h("i",{}), isLate(c) ? "Past date" : statusLabel(c.status)))),
+        !items.length && !meet.has(d) && !dayEvs.length ? h("div",{class:"wa-empty"},"Nothing planned") : null));
+  }));
+}
+function weekCard(items){
+  const off = S.weekOff || 0, days = weekDays(off);
+  const label = off === 0 ? "This week" : off === -1 ? "Last week" : off === 1 ? "Next week" : `Week of ${fmtShort(days[0])}`;
+  const go = n => { S.weekOff = n; renderMain(); };
+  return h("section",{class:"card week-card"},
+    h("div",{class:"card-h flat"}, h("div",{}, h("h3",{}, label), h("span",{class:"small muted"}, `${fmtShort(days[0])} – ${fmtShort(days[6])} · everything going live, in full`)),
+      h("div",{class:"seg"}, h("button",{type:"button", "aria-label":"Previous week", onclick:() => go(off - 1)},"‹"),
+        h("button",{type:"button", onclick:() => go(0)},"This week"), h("button",{type:"button", "aria-label":"Next week", onclick:() => go(off + 1)},"›"))),
+    weekAgenda(items, off));
+}
+
 function viewCalendar(){
   const m = S.month, y = m.getFullYear(), mo = m.getMonth();
   const start = new Date(y, mo, 1 - m.getDay());
@@ -28,7 +60,7 @@ function viewCalendar(){
   for (const c of items) if (c.publishDate) (byDay[c.publishDate] ||= []).push(c);
   for (const k in byDay) byDay[k].sort((a, b) => (a.platform === "Newsletter" ? -1 : 0) - (b.platform === "Newsletter" ? -1 : 0) || hourOf(a.time) - hourOf(b.time));
   for (const e of allEvents()) if (!S.brandOff.has(e.brand)) (evDay[e.date] ||= []).push(e);
-  const meet = new Set(meetingsBetween(ymd(start), ymd(addDays(start, 41)))), mlink = safeUrl(S.meetCfg?.link);
+  const meet = new Set(meetingsBetween(ymd(start), ymd(addDays(start, 41))));
   const weeks = Math.ceil((m.getDay() + new Date(y, mo + 1, 0).getDate()) / 7);
   const cells = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => h("div",{class:"dow"}, d));
   for (let i = 0; i < weeks * 7; i++){
@@ -36,7 +68,7 @@ function viewCalendar(){
     cells.push(h("div",{class:"day" + (d.getMonth() !== mo ? " out" : "") + (key === today() ? " today" : "")},
       h("div",{class:"d-top"}, h("span",{class:"dnum"}, d.getDate()),
         isAdmin() ? h("button",{class:"d-add", type:"button", "aria-label":`Add a post on ${fmt(key)}`, title:"Add a post on this day", onclick:() => openItem(null, key)},"+") : null),
-      meet.has(key) ? h(mlink ? "a" : "div",{class:"evt meet", href:mlink || null, target:mlink ? "_blank" : null, rel:mlink ? "noopener" : null, title:"Media team meeting" + (S.meetCfg?.time ? " · " + S.meetCfg.time : "")},
+      meet.has(key) ? h("button",{class:"evt meet", type:"button", title:"Media team meeting" + (S.meetCfg?.time ? " · " + S.meetCfg.time : ""), onclick:() => openMeeting(key)},
         h("span",{class:"evt-k"},"Meeting"), S.meetCfg?.time || "Media team") : null,
       ...(evDay[key] || []).map(e => h("div",{class:"evt", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, h("span",{class:"evt-k"},"Event"), e.name)),
       ...(byDay[key] || []).map(chip)));
@@ -52,6 +84,7 @@ function viewCalendar(){
           h("button",{type:"button", "aria-label":"Next month", onclick:() => { S.month = new Date(y, mo + 1, 1); renderMain(); }},"›"))),
       isAdmin() ? h("div",{class:"row"}, h("button",{class:"btn", type:"button", onclick:openPlanner},"Plan a month"), h("span",{class:"muted small"},"To add a post, click + on its day")) : null),
     filters(),
+    weekCard(items),
     h("div",{class:"st-sum"}, ...STATUS.map(([k, l]) => h("span",{class:"st st-" + k}, h("i",{}), `${l} · ${inMonth.filter(c => c.status === k).length}`)),
       late ? h("span",{class:"st late"}, h("i",{}), `${late} past date, not published`) : null),
     h("div",{class:"card cal-wrap"}, h("div",{class:"cal"}, cells)),

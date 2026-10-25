@@ -1,6 +1,6 @@
 // Requests: production to-dos and small asks ("newsletter cover image by Nov 3").
 // Admins assign one or more people; everyone else can only add and manage their own.
-import { S, db, h, avatar, isAdmin, registerView, renderMain, daysUntil, fmt, fmtShort, relTime, safeUrl, posts, normItem, brandChip,
+import { S, db, h, avatar, isAdmin, registerView, renderMain, save, ymd, parse, today, addDays, daysUntil, fmt, fmtShort, relTime, safeUrl, posts, normItem, brandChip,
   nameOf, teamById, teamSorted, taskOwners, isMyTask, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea,
   emailHook, sendEmail, HUB_URL } from "./core.js";
 import { EMAIL_HOOK } from "../config.js";
@@ -46,8 +46,33 @@ function reqCard(t){
       h("span",{class:"row tight"}, faces(t), h("span",{class:"small"}, ownerNames(t))),
       canEditTask(t) ? h("button",{class:"link", type:"button", onclick:() => setStatus(t, next[0])}, next[1]) : null));
 }
+// one card per person: their extra asks with a progress bar, so everyone's load is visible at a glance
+function peopleBoard(list){
+  const since = ymd(addDays(parse(today()), -30)), byPrio = (a, b) => PRIORITIES.indexOf(a.priority || "Medium") - PRIORITIES.indexOf(b.priority || "Medium") || byDue(a, b);
+  const people = teamSorted().filter(p => p.group === "media" || list.some(t => taskOwners(t).includes(p.id)));
+  if (!people.length) return h("div",{class:"card empty"},"No one on the team yet.");
+  return h("div",{class:"pb"}, ...people.map(p => {
+    const theirs = list.filter(t => taskOwners(t).includes(p.id));
+    const open = theirs.filter(t => !t.done).sort((a, b) => (reqStatus(a) === "doing" ? 0 : 1) - (reqStatus(b) === "doing" ? 0 : 1) || byPrio(a, b));
+    const doing = open.filter(t => reqStatus(t) === "doing").length, todo = open.length - doing;
+    const done = theirs.filter(t => t.done && (t.doneAt || "") >= since).length, total = open.length + done;
+    const seg = (n, k) => n ? h("span",{class:"pb-seg k-" + k, style:`flex:${n}`}) : null;
+    return h("section",{class:"card pb-p" + (p.id === S.meId ? " me" : "")},
+      h("div",{class:"pb-h"}, avatar(p, "md"), h("div",{class:"pb-who"}, h("b",{}, p.name), h("span",{class:"small muted"}, p.role || "Team")),
+        h("div",{class:"pb-n"}, h("b",{}, open.length), h("span",{}, "open"))),
+      h("div",{class:"pb-bar", role:"img", "aria-label":`${done} done, ${doing} in progress, ${todo} to do`}, total ? [seg(done, "done"), seg(doing, "doing"), seg(todo, "todo")] : h("span",{class:"pb-seg"})),
+      h("div",{class:"pb-key"}, h("span",{class:"st"}, h("i",{class:"kdot k-todo"}), `To do ${todo}`), h("span",{class:"st"}, h("i",{class:"kdot k-doing"}), `In progress ${doing}`),
+        h("span",{class:"st"}, h("i",{class:"kdot k-done"}), `Done ${done}`, h("small",{class:"muted"}," · 30 days"))),
+      open.length ? h("div",{class:"pb-list"}, ...open.slice(0, 5).map(t => h("button",{class:"pb-t", type:"button", onclick:() => openTask(t.id)},
+          h("i",{class:"kdot k-" + reqStatus(t)}), h("span",{class:"pb-tt"}, t.text), duePill(t))),
+          open.length > 5 ? h("div",{class:"small muted pb-more"}, `+ ${open.length - 5} more`) : null)
+        : h("div",{class:"pb-none"}, "No extra requests right now."),
+      isAdmin() ? h("button",{class:"pb-add", type:"button", onclick:() => openTask(null, {ownerIds:[p.id]})}, `+ Ask ${p.name.split(/\s+/)[0]}`) : null);
+  }));
+}
 function viewRequests(){
   const f = ["all","mine","asked"].includes(S.reqFilter) ? S.reqFilter : "all";
+  const mode = S.reqView === "status" ? "status" : "people";
   const list = S.tasks.filter(t => f === "all" || (f === "mine" ? isMyTask(t) : t.createdBy === S.meId && !isMyTask(t)));
   const cols = REQ_COLS.map(([k, l]) => {
     let items = list.filter(t => reqStatus(t) === k);
@@ -58,11 +83,14 @@ function viewRequests(){
       ...(items.length ? items.map(reqCard) : [h("div",{class:"empty"}, k === "todo" ? "Nothing waiting." : k === "doing" ? "Nothing in progress." : "Nothing finished yet.")]));
   });
   return [
-    h("div",{class:"page-h"}, h("div",{}, h("h2",{},"Requests"), h("p",{class:"sub"},"Who's making what, by when. The calendar is for what goes live; this is the work behind it.")),
+    h("div",{class:"page-h"}, h("div",{}, h("h2",{},"Requests"), h("p",{class:"sub"},"Extra asks on top of each person's usual role: things that come up in meetings or from teammates.")),
       h("button",{class:"btn primary", type:"button", onclick:() => openTask(null)}, isAdmin() ? "+ New request" : "+ Add my task")),
-    h("div",{class:"seg", role:"group", "aria-label":"Filter"}, ...[["all","All"],["mine","Mine"],["asked","I asked for"]].map(([k, l]) =>
-      h("button",{type:"button", "aria-pressed":String(f === k), onclick:() => { S.reqFilter = k; renderMain(); }}, l))),
-    h("div",{class:"kanban"}, ...cols)
+    h("div",{class:"spread"},
+      h("div",{class:"seg", role:"group", "aria-label":"Filter"}, ...[["all","All"],["mine","Mine"],["asked","I asked for"]].map(([k, l]) =>
+        h("button",{type:"button", "aria-pressed":String(f === k), onclick:() => { S.reqFilter = k; renderMain(); }}, l))),
+      h("div",{class:"seg", role:"group", "aria-label":"View"}, ...[["people","By person"],["status","By status"]].map(([k, l]) =>
+        h("button",{type:"button", "aria-pressed":String(mode === k), onclick:() => { S.reqView = k; save("hub.reqView", k); renderMain(); }}, l)))),
+    mode === "people" ? peopleBoard(list) : h("div",{class:"kanban"}, ...cols)
   ];
 }
 // requests linked to one calendar post, shown inside its drawer
