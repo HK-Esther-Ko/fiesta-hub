@@ -119,7 +119,7 @@ function viewHome(){
         card("Our channels", null,
           h("div",{class:"chan"}, ...chans.map(chanTile)),
           published.length ? h("div",{class:"list chan-recent"}, h("div",{class:"lbl pad-x"},"Recently published"), ...published.map(c => h("button",{class:"item slim", type:"button", onclick:() => openItem(c.id)},
-            h("span",{class:"pf", style:`--c:${BRANDS[c.brand].c}`}, icon(PLATFORMS[c.platform].icon, 14)), h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.platform} · ${fmtShort(c.publishDate)}`))))) : null))))
+            h("span",{class:"pf", style:`--c:${BRANDS[c.brand].c}`}, icon(PLATFORMS[c.platform].icon, 14)), h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.platforms.join(" + ")} · ${fmtShort(c.publishDate)}`))))) : null))))
   ];
 }
 

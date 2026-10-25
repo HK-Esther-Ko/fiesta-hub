@@ -128,7 +128,7 @@ export const BRANDS = { FIESTA:{label:"FIESTA", c:"var(--fiesta)"}, FoundHERs:{l
 export const PLATFORMS = {
   Instagram:{label:"Instagram", icon:"instagram", formats:["Carousel","Reel","Story"]},
   LinkedIn:{label:"LinkedIn", icon:"linkedin", formats:["Post"]},
-  Newsletter:{label:"Newsletter", icon:"newsletter", formats:["Newsletter"]}
+  Newsletter:{label:"Newsletter", icon:"newsletter", formats:["Newsletter"], alone:true}
 };
 export const STATUS = [
   ["todo","Not started"], ["doing","In production"], ["published","Published"]
@@ -145,8 +145,20 @@ export function normItem(c){
   if (!platform) platform = c.type === "Newsletter" ? "Newsletter" : "Instagram";
   let format = c.format;
   if (!PLATFORMS[platform].formats.includes(format)) format = platform === "Instagram" ? (["Poster","Post"].includes(format) ? "Carousel" : (format || "Carousel")) : PLATFORMS[platform].formats[0];
-  return {...c, status, brand, platform, format};
+  // one post can go to several platforms (Instagram + LinkedIn), each with its own format and post link.
+  // `platform` / `format` / `postUrl` stay as the first platform's values, so single-platform code keeps working.
+  let platforms = (c.platforms || []).filter(p => PLATFORMS[p]);
+  if (!platforms.includes(platform)) platforms = [platform, ...platforms];
+  if (platforms.includes("Newsletter")) platforms = ["Newsletter"];
+  platform = platforms[0];
+  const formats = Object.fromEntries(platforms.map(p => [p, PLATFORMS[p].formats.includes(c.formats?.[p]) ? c.formats[p] : p === c.platform || p === platform ? format : PLATFORMS[p].formats[0]]));
+  const postUrls = {...(c.postUrls || {})};
+  if (c.postUrl && !postUrls[platform]) postUrls[platform] = c.postUrl;
+  return {...c, status, brand, platform, platforms, format:formats[platform], formats, postUrls};
 }
+export const formatText = c => c.platforms.map(p => c.formats[p]).join(" + ");
+export const whereText = c => c.platforms.map(p => p === "Newsletter" ? p : `${p} ${c.formats[p]}`).join(" + ");
+export const platformIcons = (c, size) => c.platforms.map(p => icon(PLATFORMS[p].icon, size));
 export const isPost = c => !NON_POST.has(c.type);
 export const isDone = c => c.status === "published";
 export const isLate = c => c.publishDate && c.publishDate < today() && !isDone(c);

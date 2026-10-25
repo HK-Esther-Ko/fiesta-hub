@@ -33,7 +33,7 @@ service cloud.firestore {
     // calendar posts: the people a post belongs to (ownerIds) update its progress, brief, files link and post link
     match /content/{id} {
       allow update: if isMember() && myTeam() in resource.data.get('ownerIds', [])
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'notes', 'driveUrl', 'finalUrl', 'postUrl', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'notes', 'driveUrl', 'finalUrl', 'postUrl', 'postUrls', 'updatedAt']);
     }
     // tasks: anyone adds their own; the people on it work on it; admins assign (one or more people) and edit any
     function owners(d) { return d.get('ownerIds', [d.get('ownerId', '')]); }

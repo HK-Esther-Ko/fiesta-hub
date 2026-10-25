@@ -1,12 +1,12 @@
 // Content calendar: what goes up, where and when. Each post has one date; what's coming up is listed under the grid.
 import { S, db, h, icon, isAdmin, realAdmin, registerView, renderMain, setView, save, ymd, parse, pad, today, addDays, daysUntil, fmt, fmtShort, monthName, firstOfMonth,
-  safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, datePill,
+  safeUrl, hourOf, BRANDS, PLATFORMS, STATUS, statusLabel, normItem, posts, isDone, isLate, ownersFor, OWNER_RULES, brandChip, statusPill, datePill, formatText, whereText, platformIcons,
   allEvents, meetingsBetween, seriesById, nameOf, firstName, teamById, toast, dbErr, openDrawer, closeDrawer, deleteButton, field, input, select, textarea, sendEmail, HUB_URL, initials } from "./core.js";
 import { threadList, composer, updateThreads } from "./chat.js";
 import { prepSection } from "./requests.js";
 import { openMeeting } from "./meeting.js";
 
-const visible = () => posts().filter(c => !S.brandOff.has(c.brand) && !S.platformOff.has(c.platform));
+const visible = () => posts().filter(c => !S.brandOff.has(c.brand) && c.platforms.some(p => !S.platformOff.has(p)));
 const ownerTag = c => ownersFor(c).map(id => initials(nameOf(id))).join(" + ");
 
 function filters(){
@@ -18,8 +18,8 @@ function filters(){
 }
 function chip(c){
   return h("button",{class:`ev st-${c.status}` + (c.platform === "Newsletter" ? " nl" : "") + (isLate(c) ? " late" : ""), type:"button",
-    style:`--c:${BRANDS[c.brand].c}`, title:`${c.title} · ${c.platform} ${c.format} · ${statusLabel(c.status)}`, onclick:() => openItem(c.id)},
-    icon(PLATFORMS[c.platform].icon, 12), h("span",{class:"ev-t"}, c.title), h("span",{class:"ev-o"}, ownerTag(c)));
+    style:`--c:${BRANDS[c.brand].c}`, title:`${c.title} · ${whereText(c)} · ${statusLabel(c.status)}`, onclick:() => openItem(c.id)},
+    h("span",{class:"ev-ic"}, ...platformIcons(c, 12)), h("span",{class:"ev-t"}, c.title), h("span",{class:"ev-o"}, ownerTag(c)));
 }
 
 // one week, Monday to Sunday, with every post's full title, time, format and owner (Calendar and Home)
@@ -36,7 +36,7 @@ export function weekAgenda(list, off){
         meet.has(d) ? h("button",{class:"wa-ev meet", type:"button", onclick:() => openMeeting(d)}, icon("video", 13), h("span",{}, "Media team meeting", S.meetCfg?.time ? h("small",{}, S.meetCfg.time) : null)) : null,
         ...dayEvs.map(e => h("div",{class:"wa-ev", style:`--c:${(BRANDS[e.brand] || {}).c || "var(--muted)"}`}, e.name)),
         ...items.map(c => h("button",{class:`wa-post st-${c.status}` + (c.platform === "Newsletter" ? " nl" : "") + (isLate(c) ? " late" : ""), type:"button", style:`--c:${BRANDS[c.brand].c}`, onclick:() => openItem(c.id)},
-          h("span",{class:"wa-top"}, icon(PLATFORMS[c.platform].icon, 13), h("span",{}, [c.time, c.format].filter(Boolean).join(" · ")), h("span",{class:"wa-o"}, ownerTag(c))),
+          h("span",{class:"wa-top"}, ...platformIcons(c, 13), h("span",{}, [c.time, formatText(c)].filter(Boolean).join(" · ")), h("span",{class:"wa-o"}, ownerTag(c))),
           h("span",{class:"wa-t"}, c.title),
           h("span",{class:"st st-" + c.status}, h("i",{}), isLate(c) ? "Past date" : statusLabel(c.status)))),
         !items.length && !meet.has(d) && !dayEvs.length ? h("div",{class:"wa-empty"},"Nothing planned") : null));
@@ -94,7 +94,7 @@ function viewCalendar(){
 export function itemRow(c){
   return h("button",{class:"item", type:"button", onclick:() => openItem(c.id)},
     h("span",{class:"pf", style:`--c:${BRANDS[c.brand].c}`}, icon(PLATFORMS[c.platform].icon, 16)),
-    h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.brand} · ${c.format}${c.publishDate ? " · " + fmtShort(c.publishDate) : ""} · ${ownersFor(c).map(firstName).join(", ")}`)),
+    h("div",{class:"item-b"}, h("div",{class:"t"}, c.title), h("div",{class:"meta"}, `${c.brand} · ${whereText(c)}${c.publishDate ? " · " + fmtShort(c.publishDate) : ""} · ${ownersFor(c).map(firstName).join(", ")}`)),
     h("div",{class:"when"}, statusPill(c.status), datePill(c)));
 }
 function upcomingSections(items){
@@ -111,22 +111,50 @@ function upcomingSections(items){
 }
 
 /* ---------- one post ---------- */
-const FILES_HINT = "Drive folder with the drafts and finished files", POST_HINT = "Link to the post once it's up (Instagram, LinkedIn…)";
+const FILES_HINT = "Drive folder with the drafts and finished files";
+// platforms: Instagram and LinkedIn can go together; a newsletter goes alone
+function platformPicker(start, onchange){
+  let picked = start.slice();
+  const el = h("div",{class:"plat-pick", role:"group", "aria-label":"Platforms"});
+  const paint = () => el.replaceChildren(...Object.entries(PLATFORMS).map(([k, P]) => h("button",{type:"button", class:"fchip", "aria-pressed":String(picked.includes(k)),
+    onclick:() => {
+      if (picked.includes(k)){ if (picked.length > 1) picked = picked.filter(x => x !== k); }
+      else picked = P.alone ? [k] : [...picked.filter(x => !PLATFORMS[x].alone), k];
+      paint(); onchange(picked);
+    }}, icon(P.icon, 14), P.label)));
+  paint();
+  return {el, get value(){ return picked; }};
+}
+// one row per chosen platform: its format (admins pick it when there's a choice) and the link to the post once it's up
+function platformRows(c, idp, canFormat){
+  const fmts = {...c.formats}, urls = {...c.postUrls}, el = h("div",{class:"plat-rows"});
+  const paint = list => el.replaceChildren(...list.map(p => {
+    const P = PLATFORMS[p], fm = fmts[p] = P.formats.includes(fmts[p]) ? fmts[p] : P.formats[0];
+    const fsel = canFormat && P.formats.length > 1 ? select(`${idp}-fm-${p}`, P.formats, fm) : null;
+    if (fsel){ fsel.setAttribute("aria-label", P.label + " format"); fsel.onchange = () => { fmts[p] = fsel.value; }; }
+    const link = input(`${idp}-url-${p}`, urls[p], {type:"url", placeholder:`Link to the ${P.label} post once it's up`, "aria-label":P.label + " post link"});
+    link.oninput = () => { urls[p] = link.value.trim(); };
+    return h("div",{class:"plat-row"}, h("span",{class:"plat-name"}, icon(P.icon, 15), P.label, safeUrl(urls[p]) ? h("span",{class:"plat-up"},"✓ up") : null),
+      fsel || h("span",{class:"plat-fm"}, fm), link);
+  }));
+  paint(c.platforms);
+  return {el, paint, formats:list => Object.fromEntries(list.map(p => [p, fmts[p]])), urls:list => Object.fromEntries(list.map(p => [p, (urls[p] || "").trim()]))};
+}
 function facts(c){
   return h("dl",{class:"facts"},
     h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate) + (c.time ? " · " + c.time : ""), " ", datePill(c)] : "Not scheduled")),
-    h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
+    h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${whereText(c)}`)),
     h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", "))),
     h("div",{class:"wide"}, h("dt",{},"Content"), h("dd",{style:"white-space:pre-wrap"}, c.notes || "No brief yet.")),
     h("div",{class:"wide"}, h("dt",{},"Links"), h("dd",{class:"row tight"}, ...linkBtns(c))));
 }
-// a post keeps two links: its Drive folder (drafts and finished files) and the published post itself
+// a post keeps its Drive folder (drafts and finished files) and a link to the live post on each platform
 const filesUrl = c => safeUrl(c.driveUrl) || safeUrl(c.finalUrl);
 function linkBtns(c){
-  const files = filesUrl(c), post = safeUrl(c.postUrl);
-  if (!files && !post) return ["No links yet."];
+  const files = filesUrl(c), live = c.platforms.map(p => [p, safeUrl(c.postUrls[p])]).filter(([, u]) => u);
+  if (!files && !live.length) return ["No links yet."];
   return [files ? h("a",{class:"btn sm", href:files, target:"_blank", rel:"noopener"},"Files ↗") : null,
-    post ? h("a",{class:"btn sm primary", href:post, target:"_blank", rel:"noopener"},"Open post ↗") : null];
+    ...live.map(([p, u]) => h("a",{class:"btn sm primary", href:u, target:"_blank", rel:"noopener"}, icon(PLATFORMS[p].icon, 14), `Open on ${p} ↗`))];
 }
 function discussion(c){
   return h("section",{class:"d-thread"}, h("div",{class:"d-sec"}, h("h3",{},"Discussion")), threadList(c.id), composer(c.id));
@@ -134,7 +162,7 @@ function discussion(c){
 export function openItem(id, day){
   const raw = id ? S.content.find(x => x.id === id) : null;
   if (id && !raw) return;
-  const c = raw ? normItem(raw) : {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo", publishDate:day || ""};
+  const c = normItem(raw || {brand:"FIESTA", platform:"Instagram", format:"Carousel", time:"12 PM", status:"todo", publishDate:day || ""});
   if (!isAdmin() && ownersFor(c).includes(S.meId)){ openOwnItem(id, c); return; }
   if (!isAdmin()){
     openDrawer(c.title, [h("div",{class:"row"}, brandChip(c.brand), statusPill(c.status)), facts(c), prepSection(c), discussion(c)]);
@@ -143,37 +171,36 @@ export function openItem(id, day){
   const f = {
     title: input("it-title", c.title, {placeholder:"e.g. Founder Spotlight #3: Maidin"}),
     brand: select("it-brand", Object.keys(BRANDS), c.brand),
-    platform: select("it-platform", Object.keys(PLATFORMS), c.platform),
-    format: select("it-format", PLATFORMS[c.platform].formats, c.format),
     publishDate: input("it-pub", c.publishDate, {type:"date"}),
     time: input("it-time", c.time, {placeholder:"12 PM"}),
     notes: textarea("it-notes", c.notes, 4, "What the post says: featured founder, key points, caption draft…"),
-    driveUrl: input("it-drive", c.driveUrl || c.finalUrl, {type:"url", placeholder:FILES_HINT}),
-    postUrl: input("it-post", c.postUrl, {type:"url", placeholder:POST_HINT})
+    driveUrl: input("it-drive", c.driveUrl || c.finalUrl, {type:"url", placeholder:FILES_HINT})
   };
-  f.platform.onchange = () => { const fm = PLATFORMS[f.platform.value].formats; f.format.replaceChildren(...fm.map(x => h("option",{value:x}, x))); paintOwner(); };
+  const rows = platformRows(c, "it", true);
+  const plats = platformPicker(c.platforms, list => { rows.paint(list); paintOwner(); });
   let status = c.status;
   const seg = h("div",{class:"seg status-seg", role:"group", "aria-label":"Progress"}, ...STATUS.map(([k, l]) => h("button",{type:"button", class:"st-" + k, "aria-pressed":String(status === k), onclick:async ev => {
     status = k; seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget)));
     if (id){ try{ await db.collection("content").doc(id).update({status:k, updatedAt:new Date().toISOString()}); toast(`Marked ${l}.`); }catch(e){ toast(dbErr(e)); } }
   }}, h("i",{}), l)));
   const ownerTxt = h("div",{class:"owner-fixed"});
-  const paintOwner = () => { ownerTxt.textContent = ownersFor({platform:f.platform.value, title:f.title.value, type:c.type}).map(nameOf).join(", ") + "  ·  set automatically"; };
+  const paintOwner = () => { ownerTxt.textContent = ownersFor({platform:plats.value[0], title:f.title.value, type:c.type}).map(nameOf).join(", ") + "  ·  set automatically"; };
   f.title.addEventListener("input", paintOwner); paintOwner();
   const msg = h("div",{class:"cmp-status"});
   openDrawer(id ? "Edit post" : `New post · ${fmt(c.publishDate)}`, [
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("div",{class:"fields"},
-      field("Title", f.title, true), field("Brand", f.brand), field("Platform", f.platform), field("Format", f.format),
-      id ? field("Date", f.publishDate) : null, field("Time", f.time),
+      field("Title", f.title, true), field("Brand", f.brand), id ? field("Date", f.publishDate) : null, field("Time", f.time),
+      h("div",{class:"field full"}, h("span",{class:"lbl"},"Platforms · format and post link for each"), plats.el, rows.el),
       h("div",{class:"field full"}, h("span",{class:"lbl"},"Owner"), ownerTxt),
-      field("Content brief & caption", f.notes, true), field("Files", f.driveUrl, true), field("Post link", f.postUrl, true)),
+      field("Content brief & caption", f.notes, true), field("Files", f.driveUrl, true)),
     h("div",{class:"d-actions"}, id ? deleteButton(() => db.collection("content").doc(id).delete()) : h("span",{}),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         const title = f.title.value.trim(); if (!title){ msg.textContent = "Give it a title."; return; }
-        const data = {title, brand:f.brand.value, platform:f.platform.value, format:f.format.value, publishDate:f.publishDate.value, time:f.time.value.trim(),
-          notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), postUrl:f.postUrl.value.trim(), status,
-          ownerIds:ownersFor({platform:f.platform.value, title, type:c.type}), updatedAt:new Date().toISOString()};
+        const list = plats.value, formats = rows.formats(list), postUrls = rows.urls(list);
+        const data = {title, brand:f.brand.value, platform:list[0], platforms:list, format:formats[list[0]], formats, publishDate:f.publishDate.value, time:f.time.value.trim(),
+          notes:f.notes.value.trim(), driveUrl:f.driveUrl.value.trim(), postUrls, postUrl:postUrls[list[0]], status,
+          ownerIds:ownersFor({platform:list[0], title, type:c.type}), updatedAt:new Date().toISOString()};
         try{ if (id) await db.collection("content").doc(id).update(data); else await db.collection("content").add({...data, createdAt:data.updatedAt});
           closeDrawer(); toast(id ? "Saved." : "Added to the calendar."); }catch(e){ msg.textContent = dbErr(e); }
       }}, id ? "Save changes" : "Add to calendar")), msg,
@@ -182,7 +209,7 @@ export function openItem(id, day){
   updateThreads();
 }
 
-// owners (not admins) work on their own posts: progress, brief, folder and finished file.
+// owners (not admins) work on their own posts: progress, brief, files and the post links.
 // Date, platform and owner stay with admins.
 function openOwnItem(id, c){
   let status = c.status;
@@ -190,20 +217,21 @@ function openOwnItem(id, c){
     status = k; seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === ev.currentTarget))); }}, h("i",{}), l)));
   const notes = textarea("ow-notes", c.notes, 4, "What the post says: featured founder, key points, caption draft…");
   const drive = input("ow-drive", c.driveUrl || c.finalUrl, {type:"url", placeholder:FILES_HINT});
-  const post = input("ow-post", c.postUrl, {type:"url", placeholder:POST_HINT});
+  const rows = platformRows(c, "ow", false);
   const msg = h("div",{class:"cmp-status"});
   openDrawer(c.title, [
     h("div",{class:"row"}, brandChip(c.brand), h("span",{class:"pill"},"Your post")),
     h("div",{class:"field full"}, h("span",{class:"lbl"},"Progress"), seg),
     h("dl",{class:"facts"},
       h("div",{}, h("dt",{},"Date"), h("dd",{}, c.publishDate ? [fmt(c.publishDate) + (c.time ? " · " + c.time : ""), " ", datePill(c)] : "Not scheduled")),
-      h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${c.platform} · ${c.format}`)),
+      h("div",{}, h("dt",{},"Where"), h("dd",{}, `${c.brand} · ${whereText(c)}`)),
       h("div",{}, h("dt",{},"Owner"), h("dd",{}, ownersFor(c).map(nameOf).join(", ")))),
-    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Files", drive, true), field("Post link", post, true)),
+    h("div",{class:"fields"}, field("Content brief & caption", notes, true), field("Files", drive, true),
+      h("div",{class:"field full"}, h("span",{class:"lbl"},"Post links"), rows.el)),
     h("div",{class:"d-actions"}, h("span",{class:"small muted"},"The date is set by an admin."),
       h("button",{class:"btn primary", type:"button", onclick:async () => {
         if (realAdmin() && S.preview){ closeDrawer(); toast("Preview: nothing was saved."); return; }
-        try{ await db.collection("content").doc(id).update({status, notes:notes.value.trim(), driveUrl:drive.value.trim(), postUrl:post.value.trim(), updatedAt:new Date().toISOString()});
+        try{ await db.collection("content").doc(id).update({status, notes:notes.value.trim(), driveUrl:drive.value.trim(), postUrls:rows.urls(c.platforms), postUrl:rows.urls(c.platforms)[c.platform], updatedAt:new Date().toISOString()});
           closeDrawer(); toast("Saved."); }catch(e){ msg.textContent = dbErr(e); }
       }},"Save")), msg,
     prepSection(c), discussion(c)
