@@ -61,8 +61,8 @@ function renderHeader(){
   document.getElementById("tb-avatar").replaceChildren(avatar(me || {name:S.myEmail || "?"}, "md"));
   document.getElementById("tb-name").textContent = me?.name || S.googleName || S.myEmail;
   document.getElementById("tb-sub").textContent = (me?.role || "") + (isAdmin() ? (me?.role ? " · " : "") + "Admin" : "");
-  const n = notifications(), seen = load("hub.nseen." + S.meId) || "";
-  const count = n.filter(x => x.sticky || (x.at || "") > seen).length;
+  const n = notifications(), seen = load("hub.nseen." + S.meId) || "", seenNow = seenSticky();
+  const count = n.filter(x => x.sticky ? !seenNow.has(x.key) : (x.at || "") > seen).length;
   const b = document.getElementById("bell-count"); b.textContent = count; b.hidden = !count;
   renderChatButton();
   const pv = document.getElementById("preview-bar");
@@ -78,15 +78,19 @@ document.getElementById("scrim").onclick = () => { document.getElementById("draw
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !document.getElementById("drawer").hidden) document.getElementById("scrim").click(); });
 
 /* ---------- notifications ---------- */
+// "needs you" items stay in the list until they're resolved, but stop counting on the bell once you've opened it.
+// Each key includes the item's state, so a post that goes from "due soon" to "past date" counts again.
+const STICKY_KEY = () => "hub.nseenSticky." + S.meId;
+function seenSticky(){ try{ return new Set(JSON.parse(load(STICKY_KEY()) || "[]")); }catch(e){ return new Set(); } }
 function notifications(){
   if (!S.meId) return [];
   const out = [];
   for (const c of posts().filter(c => ownersFor(c).includes(S.meId) && !isDone(c) && c.publishDate && daysUntil(c.publishDate) <= 2)){
     const d = daysUntil(c.publishDate);
-    out.push({sticky:true, tone:d < 0 ? "bad" : "warn", label:d < 0 ? `${-d}d past date` : d === 0 ? "Goes up today" : `Goes up ${fmtShort(c.publishDate)}`, text:c.title, go:() => openItem(c.id)});
+    out.push({sticky:true, key:`post:${c.id}:${d < 0 ? "late" : "soon"}`, tone:d < 0 ? "bad" : "warn", label:d < 0 ? `${-d}d past date` : d === 0 ? "Goes up today" : `Goes up ${fmtShort(c.publishDate)}`, text:c.title, go:() => openItem(c.id)});
   }
   for (const t of S.tasks.filter(t => isMyTask(t) && !t.done && t.due && daysUntil(t.due) <= 2))
-    out.push({sticky:true, tone:daysUntil(t.due) < 0 ? "bad" : "warn", label:daysUntil(t.due) < 0 ? "Request late" : "Request due", text:t.text, go:() => openTask(t.id)});
+    out.push({sticky:true, key:`task:${t.id}:${daysUntil(t.due) < 0 ? "late" : "soon"}`, tone:daysUntil(t.due) < 0 ? "bad" : "warn", label:daysUntil(t.due) < 0 ? "Request late" : "Request due", text:t.text, go:() => openTask(t.id)});
   for (const m of S.messages.filter(m => m.authorId !== S.meId && !m.taskId && ((m.mentions || []).includes(S.meId) || (m.thread.startsWith("dm:") && m.thread.slice(3).split("|").includes(S.meId))))){
     const isDm = m.thread.startsWith("dm:"), post = S.content.find(c => c.id === m.thread);
     out.push({at:m.createdAt, label:isDm ? `${nameOf(m.authorId)} sent you a message` : `${nameOf(m.authorId)} mentioned you` + (post ? ` on “${post.title}”` : ` in ${threadTitle(m.thread)}`), text:m.text,
@@ -108,7 +112,9 @@ document.getElementById("bell").onclick = () => {
     !n.length ? h("div",{class:"empty"},"You're all caught up.")
       : h("div",{}, now.length ? h("div",{class:"n-sec"},"Needs you") : null, ...now.map(row), recent.length ? h("div",{class:"n-sec"},"Recent") : null, ...recent.map(row)));
   p.hidden = false;
-  if (recent.length){ save("hub.nseen." + S.meId, recent[0].at); renderHeader(); }
+  if (recent.length) save("hub.nseen." + S.meId, recent[0].at);
+  save(STICKY_KEY(), JSON.stringify(now.map(x => x.key)));
+  renderHeader();
 };
 
 /* ---------- sign-in gate ---------- */

@@ -787,6 +787,14 @@ a.mt-link:hover{border-color:var(--accent)}
 .vil-hold{position:absolute; right:-10px; bottom:12px; font-size:15px; line-height:1}
 .vil-p.cheer .vil-bob{animation:vil-hop .9s ease-out infinite}
 .vil-late{color:var(--bad); font-weight:700}
+/* hover card: what's past due first (red), then what's still to do; each line opens the item */
+.vil-sec{width:100%; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-top:2px}
+.vil-sec.late{color:var(--bad)}
+.vil-do{display:flex; flex-direction:column; width:100%; text-align:left; border:0; border-radius:8px; padding:5px 8px; background:var(--sunken); cursor:pointer; font:inherit; color:inherit; font-size:12.5px; font-weight:600; line-height:1.3}
+.vil-do small{font-size:11px; font-weight:600; color:var(--muted)}
+.vil-do.late{background:color-mix(in srgb, var(--bad) 10%, var(--surface))} .vil-do.late small{color:var(--bad)}
+.vil-do:hover{box-shadow:inset 0 0 0 1px var(--accent)}
+.vil-p .face-pop{width:250px; gap:6px}
 /* meeting day: everyone gathers by the hall (left house); event day: flags, balloons, the event's color */
 .v-hall{cursor:pointer} .v-hall:hover .v-wall{fill:#fff}
 .vil.meet .vil-row{justify-content:flex-start; padding-left:max(12px, 9%); gap:2px}
