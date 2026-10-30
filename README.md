@@ -3,7 +3,7 @@
 The FIESTA media team's internal site: content calendar, events and role charts, meetings and to-dos, team chat with @mentions, Drive folder links, SOPs and the team page.
 
 - **Hosting:** GitHub Pages (static files, free)
-- **Sign-in and data:** Firebase Auth (Google sign-in) + Cloud Firestore, on the free Spark plan
+- **Sign-in and data:** Firebase Auth (Google sign-in, or an emailed sign-in link for work addresses that aren't Google accounts) + Cloud Firestore, on the free Spark plan
 - **No build step:** plain HTML/CSS/JS modules; edit a file, push, done
 
 ## Files
@@ -39,6 +39,7 @@ Only emails on the Access list (or in `ADMIN_EMAILS`) can sign in.
 
 1. **Firebase project.** console.firebase.google.com → Add project (Analytics off).
 2. **Google sign-in.** Build → Authentication → Get started → Sign-in method → Google → Enable → Save.
+   For work emails that aren't Google accounts: same page → Add new provider → Email/Password → turn on **Email link (passwordless sign-in)** → Save.
 3. **Database.** Build → Firestore Database → Create database → Production mode.
    Then **Rules** tab → paste `firestore.rules` → put your admin email(s) in `bootstrapAdmin()` (lowercase) → Publish.
 4. **Web app keys.** Project settings → General → Your apps → Web (`</>`) → Register → copy the `firebaseConfig` values into `config.js`. Put the same admin email(s) in `ADMIN_EMAILS`.

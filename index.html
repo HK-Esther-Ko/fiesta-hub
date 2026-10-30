@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="styles.css?v=20261025m">
+<link rel="stylesheet" href="styles.css?v=20261030a">
 </head>
 <body>
 
@@ -18,6 +18,13 @@
     <h1>FIESTA <span>Media Team</span></h1>
     <p id="gate-msg">Loading…</p>
     <button id="gate-signin" class="btn primary" type="button" hidden>Sign in with Google</button>
+    <form id="gate-mail" class="gate-mail" hidden>
+      <div class="gate-or"><span>or, with a work email that isn't Google</span></div>
+      <label for="gate-email" class="sr">Email</label>
+      <input id="gate-email" type="email" autocomplete="email" placeholder="you@company.com" required>
+      <button id="gate-mail-btn" class="btn" type="submit">Email me a sign-in link</button>
+      <p id="gate-mail-msg" class="gate-mail-msg" role="status"></p>
+    </form>
     <button id="gate-signout" class="btn ghost" type="button" hidden>Use a different account</button>
     <p id="gate-pv" class="gate-pv" hidden><b>Preview.</b> This is the first screen teammates see. Click Sign in to continue; Google's account picker is skipped.</p>
   </div>
@@ -56,6 +63,6 @@
   <div id="toast" hidden></div>
 </div>
 
-<script type="module" src="app.js?v=20261025m"></script>
+<script type="module" src="app.js?v=20261030a"></script>
 </body>
 </html>

@@ -2,7 +2,8 @@
 // app.js talks to `db` with collection()/doc()/onSnapshot()/set()/update(), so the UI code
 // does not depend on Firebase's own API shape.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
+  sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection as fsCollection, doc as fsDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs,
   onSnapshot as fsOnSnapshot, query as fsQuery, orderBy as fsOrderBy, limit as fsLimit, FieldPath, writeBatch
@@ -60,6 +61,20 @@ export const db = { collection: p => colRef(fsCollection(fs, p)), doc: p => docR
 export const onUser = cb => onAuthStateChanged(auth, cb);
 export const signIn = () => signInWithPopup(auth, new GoogleAuthProvider());
 export const signOutUser = () => signOut(auth);
+// email link sign-in, for work addresses that aren't Google accounts: the link comes back to this page
+// and finishes there. The address is remembered in this browser so the person isn't asked for it twice.
+const LINK_KEY = "hub.linkEmail";
+export async function sendEmailLink(email){
+  await sendSignInLinkToEmail(auth, email, { url: location.origin + location.pathname, handleCodeInApp: true });
+  try{ localStorage.setItem(LINK_KEY, email); }catch(e){}
+}
+export const isEmailLink = () => isSignInWithEmailLink(auth, location.href);
+export const savedLinkEmail = () => { try{ return localStorage.getItem(LINK_KEY) || ""; }catch(e){ return ""; } };
+export async function finishEmailLink(email){
+  await signInWithEmailLink(auth, email, location.href);
+  try{ localStorage.removeItem(LINK_KEY); }catch(e){}
+  history.replaceState(null, "", location.pathname);
+}
 export const isBootstrapAdmin = email => !!email && ADMIN_EMAILS.map(x => x.toLowerCase()).includes(email.toLowerCase());
 
 // access: "admin" | "content" | "member"; null = not allowed in

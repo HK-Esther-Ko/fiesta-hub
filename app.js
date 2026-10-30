@@ -1,5 +1,5 @@
 // Entry point: sign-in gate, app shell (menu, top bar, notifications, chat button) and live data.
-import { onUser, signIn, signOutUser, isBootstrapAdmin, getAccess } from "./firebase.js";
+import { onUser, signIn, signOutUser, isBootstrapAdmin, getAccess, sendEmailLink, isEmailLink, savedLinkEmail, finishEmailLink } from "./firebase.js";
 import { S, db, h, icon, avatar, isAdmin, renderMain, setView, setNavHook, onRender, load, save, today, daysUntil, fmtShort, relTime,
   teamById, nameOf, posts, isDone, ownersFor, isMyTask, realAdmin, setPreview, normItem } from "./js/core.js";
 import "./js/home.js";
@@ -115,7 +115,8 @@ function showGate(kind, email){
   document.getElementById("app").hidden = true; document.getElementById("gate").hidden = false;
   document.getElementById("gate-signin").hidden = kind !== "signin";
   document.getElementById("gate-signout").hidden = kind !== "denied";
-  document.getElementById("gate-msg").textContent = kind === "signin" ? "Sign in with the Google account your admin added."
+  document.getElementById("gate-mail").hidden = kind !== "signin" || !!(realAdmin() && S.preview?.first);
+  document.getElementById("gate-msg").textContent = kind === "signin" ? "Sign in with the email your admin added."
     : `${email} isn't on the team list yet. Ask an admin to add this email, then reload.`;
 }
 // Google sign-in can't finish inside app browsers (KakaoTalk, Instagram, LINE, Facebook…): they block the popup
@@ -123,7 +124,7 @@ const inAppBrowser = /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER|DaumApps|wv\)/i
 function showOpenInBrowser(){
   const msg = document.getElementById("gate-msg");
   msg.replaceChildren(
-    "This app's built-in browser can't do Google sign-in. Open the link in Safari or Chrome instead.",
+    "This app's built-in browser can't do Google sign-in. Open the link in Safari or Chrome, or use the email link below.",
     h("br"), h("button",{class:"btn sm", type:"button", style:"margin-top:10px", onclick:async ev => {
       try{ await navigator.clipboard.writeText(location.href); ev.target.textContent = "Link copied"; }catch(e){ ev.target.textContent = location.href; } }}, "Copy link"));
 }
@@ -142,6 +143,35 @@ document.getElementById("gate-signin").onclick = () => {
 };
 if (inAppBrowser) setTimeout(showOpenInBrowser, 0);
 document.getElementById("gate-signout").onclick = () => signOutUser();
+
+// email link: send one, or finish signing in when the person comes back through it
+const mailForm = document.getElementById("gate-mail"), mailIn = document.getElementById("gate-email"), mailMsg = document.getElementById("gate-mail-msg"), mailBtn = document.getElementById("gate-mail-btn");
+async function completeLink(email){
+  mailMsg.textContent = "Signing you in…";
+  try{ await finishEmailLink(email); mailMsg.textContent = ""; }
+  catch(e){
+    mailForm.dataset.mode = "send"; mailBtn.textContent = "Email me a sign-in link";
+    mailMsg.textContent = e?.code === "auth/invalid-email" ? "That isn't the email the link was sent to. Try again."
+      : "That link has expired or was already used. Ask for a new one.";
+  }
+}
+mailForm.onsubmit = async ev => {
+  ev.preventDefault();
+  const email = mailIn.value.trim().toLowerCase(); if (!email) return;
+  if (mailForm.dataset.mode === "confirm"){ completeLink(email); return; }
+  mailBtn.disabled = true; mailMsg.textContent = "Sending…";
+  try{ await sendEmailLink(email); mailMsg.textContent = `Check ${email} for a sign-in link (it can take a minute, and may land in spam). Open it on this device.`; }
+  catch(e){ mailMsg.textContent = "Couldn't send the link. Check the address and try again."; }
+  mailBtn.disabled = false;
+};
+if (isEmailLink()){
+  const saved = savedLinkEmail();
+  if (saved) completeLink(saved);
+  else { // opened on another device or browser: ask which address the link was for
+    mailForm.dataset.mode = "confirm"; mailBtn.textContent = "Sign in";
+    mailMsg.textContent = "Type the email you asked the link for to finish signing in.";
+  }
+}
 
 // who am I: the admin-assigned team card on my Access entry, else a card with my sign-in email
 function linkMe(){
