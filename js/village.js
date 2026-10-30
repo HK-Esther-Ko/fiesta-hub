@@ -66,14 +66,20 @@ function grid(L){
   for (const [r, s] of Object.entries(HAIR[L.hair] || {})) g[r] = s;
   return g.map((row, r) => { const o = (ACC[L.acc] || {})[r]; return o ? [...row].map((ch, i) => o[i] !== "." ? o[i] : ch).join("") : row; });
 }
+// people who haven't dressed up yet are a plain grey figure with a "?" face, so nobody's look is guessed for them
+const MYSTERY_Q = {5:"......qqqq......", 6:"......q..q......", 7:".........q......", 8:"........qq......", 9:"........q.......", 11:"........q......."};
+const MYSTERY = {o:"#8d919b", s:"#d3d6dc", e:"#d3d6dc", c:"#d3d6dc", h:"#b4b8c0", t:"#b4b8c0", w:"#d3d6dc", k:"#b4b8c0", p:"#9a9ea8", q:"#ffffff"};
+export const isDressed = t => !!t?.pixel;
 export function sprite(t, cls, look){
+  const mystery = !look && !isDressed(t);
   const L = look || lookOf(t);
   const tie = L.top === "#1d5075" ? "#ea7136" : "#1d5075";
-  const C = {o:"#2a2233", e:"#2a2233", g:"#2a2233", s:L.skin, c:"#f59aa5", h:L.hairColor, t:L.top, w:"#ffffff", k:L.tie === "none" ? L.top : tie,
+  const C = mystery ? MYSTERY : {o:"#2a2233", e:"#2a2233", g:"#2a2233", s:L.skin, c:"#f59aa5", h:L.hairColor, t:L.top, w:"#ffffff", k:L.tie === "none" ? L.top : tie,
     p:"#3a3346", m:"#2b2d3a", L:"#7fb4ff", b:L.acc === "cap" ? "#ea7136" : "#e1578c"};
+  const rows = mystery ? grid({hair:"short", acc:"none"}).map((row, r) => MYSTERY_Q[r] ? [...row].map((ch, i) => MYSTERY_Q[r][i] === "q" ? "q" : ch).join("") : row) : grid(L);
   // one rect per horizontal run of the same color keeps the svg small
   let rects = "";
-  grid(L).forEach((row, y) => { for (let x = 0; x < 16;){ const ch = row[x]; let w = 1; while (x + w < 16 && row[x + w] === ch) w++;
+  rows.forEach((row, y) => { for (let x = 0; x < 16;){ const ch = row[x]; let w = 1; while (x + w < 16 && row[x + w] === ch) w++;
     if (C[ch]) rects += `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${C[ch]}"/>`; x += w; } });
   const el = h("span",{class:"px" + (cls ? " " + cls : ""), "aria-hidden":"true"});
   el.innerHTML = `<svg viewBox="0 0 16 19" shape-rendering="crispEdges">${rects}</svg>`;
@@ -135,6 +141,7 @@ function villager(t, i){
     h("span",{class:"vil-name"}, me ? "You" : (t.name || "").split(/\s+/)[0]),
     h("div",{class:"face-pop", role:"tooltip"},
       h("div",{class:"row"}, avatar(t, "md"), h("div",{}, h("b",{}, t.name), h("div",{class:"small muted"}, t.role || "Team"))),
+      isDressed(t) ? null : h("div",{class:"small muted"}, me ? "You haven't dressed up yet. Press Dress up to pick your look." : "Hasn't dressed up their character yet."),
       w.reqs ? h("div",{class:"small" + (w.late ? " vil-late" : "")}, `${w.reqs} open request${w.reqs === 1 ? "" : "s"}${w.late ? ` · ${w.late} past due` : ""}`) : null,
       w.todayPosts.length ? h("div",{class:"small"}, (w.allUp ? "Posted today: " : "Posting today: ") + w.todayPosts.map(c => c.title).join(", ")) : null,
       mail ? h("a",{class:"small", href:"mailto:" + mail}, mail) : null,
