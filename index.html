@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="styles.css?v=20261030a">
+<link rel="stylesheet" href="styles.css?v=20261030b">
 </head>
 <body>
 
@@ -18,13 +18,30 @@
     <h1>FIESTA <span>Media Team</span></h1>
     <p id="gate-msg">Loading…</p>
     <button id="gate-signin" class="btn primary" type="button" hidden>Sign in with Google</button>
-    <form id="gate-mail" class="gate-mail" hidden>
+    <div id="gate-alt" class="gate-mail" hidden>
       <div class="gate-or"><span>or, with a work email that isn't Google</span></div>
-      <label for="gate-email" class="sr">Email</label>
-      <input id="gate-email" type="email" autocomplete="email" placeholder="you@company.com" required>
-      <button id="gate-mail-btn" class="btn" type="submit">Email me a sign-in link</button>
-      <p id="gate-mail-msg" class="gate-mail-msg" role="status"></p>
-    </form>
+      <div class="seg gate-tabs" role="group" aria-label="Sign-in method">
+        <button type="button" data-tab="link" aria-pressed="true">Email link</button>
+        <button type="button" data-tab="pass" aria-pressed="false">Password</button>
+      </div>
+      <form id="gate-mail" class="gate-mail">
+        <label for="gate-email" class="sr">Email</label>
+        <input id="gate-email" type="email" autocomplete="email" placeholder="you@company.com" required>
+        <button id="gate-mail-btn" class="btn" type="submit">Email me a sign-in link</button>
+        <p id="gate-mail-msg" class="gate-mail-msg" role="status"></p>
+      </form>
+      <form id="gate-pass" class="gate-mail" hidden>
+        <label for="gate-pemail" class="sr">Email</label>
+        <input id="gate-pemail" type="email" autocomplete="email" placeholder="you@company.com" required>
+        <label for="gate-pw" class="sr">Password</label>
+        <input id="gate-pw" type="password" autocomplete="current-password" placeholder="Password" required minlength="6">
+        <button id="gate-pass-btn" class="btn" type="submit">Sign in</button>
+        <div class="gate-links"><button id="gate-mode" class="link" type="button">First time? Create a password</button><button id="gate-forgot" class="link" type="button">Forgot password?</button></div>
+        <p id="gate-pass-msg" class="gate-mail-msg" role="status"></p>
+      </form>
+    </div>
+    <button id="gate-continue" class="btn primary" type="button" hidden>I've verified it, continue</button>
+    <button id="gate-resend" class="btn" type="button" hidden>Send the email again</button>
     <button id="gate-signout" class="btn ghost" type="button" hidden>Use a different account</button>
     <p id="gate-pv" class="gate-pv" hidden><b>Preview.</b> This is the first screen teammates see. Click Sign in to continue; Google's account picker is skipped.</p>
   </div>
@@ -63,6 +80,6 @@
   <div id="toast" hidden></div>
 </div>
 
-<script type="module" src="app.js?v=20261030a"></script>
+<script type="module" src="app.js?v=20261030b"></script>
 </body>
 </html>
