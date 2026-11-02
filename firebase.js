@@ -4,7 +4,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink,
-  signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  signInWithEmailAndPassword, updatePassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection as fsCollection, doc as fsDoc, setDoc, updateDoc, deleteDoc, getDoc, getDocs,
   onSnapshot as fsOnSnapshot, query as fsQuery, orderBy as fsOrderBy, limit as fsLimit, FieldPath, writeBatch
@@ -71,17 +71,9 @@ export async function sendEmailLink(email){
 }
 export const isEmailLink = () => isSignInWithEmailLink(auth, location.href);
 export const savedLinkEmail = () => { try{ return localStorage.getItem(LINK_KEY) || ""; }catch(e){ return ""; } };
-// email + password: a new account must confirm its address (the database rules only accept verified emails)
-const backHere = () => ({ url: location.origin + location.pathname });
+// email + password: the account comes from confirming the email by link; the password is set right after
 export const passwordSignIn = (email, pw) => signInWithEmailAndPassword(auth, email, pw);
-export async function passwordSignUp(email, pw){
-  const cred = await createUserWithEmailAndPassword(auth, email, pw);
-  await sendEmailVerification(cred.user, backHere());
-}
-export const resendVerification = () => auth.currentUser && sendEmailVerification(auth.currentUser, backHere());
-export const resetPassword = email => sendPasswordResetEmail(auth, email, backHere());
-// after the person clicks the verification link in another tab: refresh the token so the rules see it
-export async function refreshUser(){ if (auth.currentUser){ await auth.currentUser.reload(); await auth.currentUser.getIdToken(true); } return auth.currentUser; }
+export const setPassword = pw => updatePassword(auth.currentUser, pw);
 export async function finishEmailLink(email){
   await signInWithEmailLink(auth, email, location.href);
   try{ localStorage.removeItem(LINK_KEY); }catch(e){}

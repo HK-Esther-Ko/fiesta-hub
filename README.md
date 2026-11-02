@@ -39,7 +39,7 @@ Only emails on the Access list (or in `ADMIN_EMAILS`) can sign in.
 
 1. **Firebase project.** console.firebase.google.com → Add project (Analytics off).
 2. **Google sign-in.** Build → Authentication → Get started → Sign-in method → Google → Enable → Save.
-   For work emails that aren't Google accounts: same page → Add new provider → Email/Password → turn on **Email/Password** and **Email link (passwordless sign-in)** → Save. New password accounts confirm their address by email before they can get in.
+   For work emails that aren't Google accounts: same page → Add new provider → Email/Password → turn on **Email/Password** and **Email link (passwordless sign-in)** → Save. A work-email account starts with "Verify your email": the link confirms the address, then the person sets a password.
 3. **Database.** Build → Firestore Database → Create database → Production mode.
    Then **Rules** tab → paste `firestore.rules` → put your admin email(s) in `bootstrapAdmin()` (lowercase) → Publish.
 4. **Web app keys.** Project settings → General → Your apps → Web (`</>`) → Register → copy the `firebaseConfig` values into `config.js`. Put the same admin email(s) in `ADMIN_EMAILS`.

@@ -1,6 +1,6 @@
 // Entry point: sign-in gate, app shell (menu, top bar, notifications, chat button) and live data.
 import { onUser, signIn, signOutUser, isBootstrapAdmin, getAccess, sendEmailLink, isEmailLink, savedLinkEmail, finishEmailLink,
-  passwordSignIn, passwordSignUp, resendVerification, resetPassword, refreshUser } from "./firebase.js";
+  passwordSignIn, setPassword } from "./firebase.js";
 import { S, db, h, icon, avatar, isAdmin, renderMain, setView, setNavHook, onRender, load, save, today, daysUntil, fmtShort, relTime,
   teamById, nameOf, posts, isDone, ownersFor, isMyTask, realAdmin, setPreview, normItem } from "./js/core.js";
 import "./js/home.js";
@@ -121,11 +121,11 @@ document.getElementById("bell").onclick = () => {
 function showGate(kind, email){
   document.getElementById("app").hidden = true; document.getElementById("gate").hidden = false;
   document.getElementById("gate-signin").hidden = kind !== "signin";
-  document.getElementById("gate-signout").hidden = kind === "signin";
+  document.getElementById("gate-signout").hidden = kind !== "denied";
   document.getElementById("gate-alt").hidden = kind !== "signin" || !!(realAdmin() && S.preview?.first);
-  document.getElementById("gate-continue").hidden = document.getElementById("gate-resend").hidden = kind !== "verify";
+  document.getElementById("gate-setpw").hidden = kind !== "setpw";
   document.getElementById("gate-msg").textContent = kind === "signin" ? "Sign in with the email your admin added."
-    : kind === "verify" ? `One more step: we sent a link to ${email}. Open it to confirm the address, then come back here.`
+    : kind === "setpw" ? `Your email ${email} is confirmed. Set a password so next time you can sign in with it.`
     : `${email} isn't on the team list yet. Ask an admin to add this email, then reload.`;
 }
 // Google sign-in can't finish inside app browsers (KakaoTalk, Instagram, LINE, Facebook…): they block the popup
@@ -133,7 +133,7 @@ const inAppBrowser = /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER|DaumApps|wv\)/i
 function showOpenInBrowser(){
   const msg = document.getElementById("gate-msg");
   msg.replaceChildren(
-    "This app's built-in browser can't do Google sign-in. Open the link in Safari or Chrome, or use the email link below.",
+    "This app's built-in browser can't do Google sign-in. Open the link in Safari or Chrome, or use your email below.",
     h("br"), h("button",{class:"btn sm", type:"button", style:"margin-top:10px", onclick:async ev => {
       try{ await navigator.clipboard.writeText(location.href); ev.target.textContent = "Link copied"; }catch(e){ ev.target.textContent = location.href; } }}, "Copy link"));
 }
@@ -153,78 +153,65 @@ document.getElementById("gate-signin").onclick = () => {
 if (inAppBrowser) setTimeout(showOpenInBrowser, 0);
 document.getElementById("gate-signout").onclick = () => signOutUser();
 
-// email link: send one, or finish signing in when the person comes back through it
-const mailForm = document.getElementById("gate-mail"), mailIn = document.getElementById("gate-email"), mailMsg = document.getElementById("gate-mail-msg"), mailBtn = document.getElementById("gate-mail-btn");
+// work email (not Google): one form. Email + password signs in. The first time, or after a forgotten password,
+// "Verify your email" sends a link; opening it confirms the address (that's the account) and then asks for a password.
+const passForm = document.getElementById("gate-pass"), passEmail = document.getElementById("gate-pemail"), passPw = document.getElementById("gate-pw");
+const passBtn = document.getElementById("gate-pass-btn"), passMsg = document.getElementById("gate-pass-msg");
+const SETPW = "hub.setpw";
+const tabGet = k => { try{ return sessionStorage.getItem(k); }catch(e){ return null; } }, tabSet = (k, v) => { try{ v ? sessionStorage.setItem(k, v) : sessionStorage.removeItem(k); }catch(e){} };
+// unknown errors show their code, so a setup problem (a sign-in method switched off, a domain not allowed) can be found
+const AUTH_ERR = {"auth/invalid-credential":"Wrong email or password. First time here? Press Verify your email.", "auth/wrong-password":"Wrong email or password.",
+  "auth/user-not-found":"No password for this email yet. Press Verify your email to set one.", "auth/invalid-email":"That email doesn't look right.",
+  "auth/too-many-requests":"Too many tries. Wait a few minutes, or press Verify your email to reset.", "auth/weak-password":"Use at least 6 characters.",
+  "auth/operation-not-allowed":"This sign-in method isn't switched on in Firebase yet. Ask an admin.",
+  "auth/unauthorized-continue-uri":"This site's address isn't on Firebase's allowed domains yet. Ask an admin.",
+  "auth/quota-exceeded":"Today's email limit is used up. Try again tomorrow, or sign in with your password."};
+const authErr = (e, fallback) => AUTH_ERR[e?.code] || `${fallback} (${e?.code || "unknown error"})`;
 async function completeLink(email){
-  mailMsg.textContent = "Signing you in…";
-  try{ await finishEmailLink(email); mailMsg.textContent = ""; }
+  passMsg.textContent = "Confirming your email…";
+  tabSet(SETPW, "1");
+  try{ await finishEmailLink(email); passMsg.textContent = ""; }
   catch(e){
-    mailForm.dataset.mode = "send"; mailBtn.textContent = "Email me a sign-in link";
-    mailMsg.textContent = e?.code === "auth/invalid-email" ? "That isn't the email the link was sent to. Try again."
-      : "That link has expired or was already used. Ask for a new one.";
+    tabSet(SETPW, null); passForm.dataset.mode = ""; passPw.hidden = false; passBtn.textContent = "Sign in";
+    passMsg.textContent = e?.code === "auth/invalid-email" ? "That isn't the email the link was sent to. Try again."
+      : e?.code === "auth/invalid-action-code" || e?.code === "auth/expired-action-code" ? "That link has expired or was already used. Press Verify your email for a new one."
+      : authErr(e, "Couldn't confirm the email.");
   }
 }
-mailForm.onsubmit = async ev => {
+passForm.onsubmit = async ev => {
   ev.preventDefault();
-  const email = mailIn.value.trim().toLowerCase(); if (!email) return;
-  if (mailForm.dataset.mode === "confirm"){ completeLink(email); return; }
-  mailBtn.disabled = true; mailMsg.textContent = "Sending…";
-  try{ await sendEmailLink(email); mailMsg.textContent = `Check ${email} for a sign-in link (it can take a minute, and may land in spam). Open it on this device.`; }
-  catch(e){ mailMsg.textContent = "Couldn't send the link. Check the address and try again."; }
-  mailBtn.disabled = false;
+  const email = passEmail.value.trim().toLowerCase(); if (!email) return;
+  if (passForm.dataset.mode === "confirm"){ completeLink(email); return; }
+  if (!passPw.value){ passMsg.textContent = "Type your password, or press Verify your email if you don't have one yet."; passPw.focus(); return; }
+  passBtn.disabled = true; passMsg.textContent = "Signing in…";
+  try{ await passwordSignIn(email, passPw.value); passMsg.textContent = ""; }
+  catch(e){ passMsg.textContent = authErr(e, "Couldn't sign in."); }
+  passBtn.disabled = false;
+};
+document.getElementById("gate-verify").onclick = async () => {
+  const email = passEmail.value.trim().toLowerCase();
+  if (!email || !passEmail.checkValidity()){ passMsg.textContent = "Type your email above first, then press Verify your email."; passEmail.focus(); return; }
+  passMsg.textContent = "Sending…";
+  try{ await sendEmailLink(email); passMsg.textContent = `We sent a link to ${email}. Open it on this device (check spam too); you'll come back here to set your password.`; }
+  catch(e){ passMsg.textContent = authErr(e, "Couldn't send the email."); }
 };
 if (isEmailLink()){
   const saved = savedLinkEmail();
   if (saved) completeLink(saved);
   else { // opened on another device or browser: ask which address the link was for
-    mailForm.dataset.mode = "confirm"; mailBtn.textContent = "Sign in";
-    mailMsg.textContent = "Type the email you asked the link for to finish signing in.";
+    passForm.dataset.mode = "confirm"; passPw.hidden = true; passBtn.textContent = "Confirm email";
+    passMsg.textContent = "Type the email this link was sent to, to finish confirming it.";
   }
 }
-
-// email + password: sign in, create a password the first time, or reset a forgotten one
-const passForm = document.getElementById("gate-pass"), passEmail = document.getElementById("gate-pemail"), passPw = document.getElementById("gate-pw");
-const passBtn = document.getElementById("gate-pass-btn"), passMsg = document.getElementById("gate-pass-msg"), modeBtn = document.getElementById("gate-mode");
-let creating = false;
-document.querySelectorAll(".gate-tabs button").forEach(b => b.onclick = () => {
-  document.querySelectorAll(".gate-tabs button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-  mailForm.hidden = b.dataset.tab !== "link"; passForm.hidden = b.dataset.tab !== "pass";
-  if (b.dataset.tab === "pass" && !passEmail.value) passEmail.value = mailIn.value;
-});
-modeBtn.onclick = () => {
-  creating = !creating; passMsg.textContent = "";
-  passBtn.textContent = creating ? "Create account" : "Sign in";
-  modeBtn.textContent = creating ? "Already have a password? Sign in" : "First time? Create a password";
-  passPw.autocomplete = creating ? "new-password" : "current-password";
-  passPw.placeholder = creating ? "New password (6+ characters)" : "Password";
-};
-const PASS_ERR = {"auth/invalid-credential":"Wrong email or password.", "auth/wrong-password":"Wrong email or password.", "auth/user-not-found":"Wrong email or password.",
-  "auth/email-already-in-use":"This email already has an account. Sign in, or use Forgot password to set one.", "auth/weak-password":"Use at least 6 characters.",
-  "auth/invalid-email":"That email doesn't look right.", "auth/too-many-requests":"Too many tries. Wait a few minutes, or reset your password.",
-  "auth/operation-not-allowed":"Password sign-in isn't switched on yet. Ask an admin."};
-passForm.onsubmit = async ev => {
+// back from the link: set a password (or skip), then into the site
+const newPw = document.getElementById("gate-newpw"), setMsg = document.getElementById("gate-setpw-msg");
+document.getElementById("gate-setpw").onsubmit = async ev => {
   ev.preventDefault();
-  const email = passEmail.value.trim().toLowerCase(), pw = passPw.value;
-  passBtn.disabled = true; passMsg.textContent = creating ? "Creating your account…" : "Signing in…";
-  try{ creating ? await passwordSignUp(email, pw) : await passwordSignIn(email, pw); passMsg.textContent = ""; }
-  catch(e){ passMsg.textContent = PASS_ERR[e?.code] || "That didn't work. Try again."; }
-  passBtn.disabled = false;
+  setMsg.textContent = "Saving…";
+  try{ await setPassword(newPw.value); tabSet(SETPW, null); location.reload(); }
+  catch(e){ setMsg.textContent = e?.code === "auth/requires-recent-login" ? "That took a while. Press Verify your email again, then set the password right away." : authErr(e, "Couldn't save the password."); }
 };
-document.getElementById("gate-forgot").onclick = async () => {
-  const email = passEmail.value.trim().toLowerCase();
-  if (!email){ passMsg.textContent = "Type your email above first, then press Forgot password."; passEmail.focus(); return; }
-  try{ await resetPassword(email); passMsg.textContent = `If ${email} has an account, a reset link is on its way (check spam too).`; }
-  catch(e){ passMsg.textContent = PASS_ERR[e?.code] || "Couldn't send the reset email. Try again."; }
-};
-// a new password account waits here until its address is confirmed
-document.getElementById("gate-continue").onclick = async () => {
-  const u = await refreshUser().catch(() => null);
-  if (u?.emailVerified) location.reload();
-  else document.getElementById("gate-msg").textContent = `Not confirmed yet. Open the link we sent to ${u?.email || "your email"} (check spam), then press Continue.`;
-};
-document.getElementById("gate-resend").onclick = async ev => {
-  try{ await resendVerification(); ev.target.textContent = "Sent. Check your inbox"; }catch(e){ ev.target.textContent = "Wait a minute, then try again"; }
-};
+document.getElementById("gate-skip").onclick = () => { tabSet(SETPW, null); location.reload(); };
 
 // who am I: the admin-assigned team card on my Access entry, else a card with my sign-in email
 function linkMe(){
@@ -244,10 +231,13 @@ function maybeWelcome(){
 let started = false;
 onUser(async user => {
   if (!user){ showGate("signin"); return; }
-  if (!user.emailVerified){ showGate("verify", user.email); return; }
+  // an account whose address was never confirmed (made before the email check moved first) has to confirm it now
+  if (!user.emailVerified){ await signOutUser(); showGate("signin"); passEmail.value = user.email || "";
+    passMsg.textContent = "Confirm this email first: press Verify your email, open the link, then set your password."; return; }
   S.myEmail = (user.email || "").toLowerCase(); S.googleName = user.displayName || "";
   S.access = isBootstrapAdmin(S.myEmail) ? "admin" : (await getAccess(S.myEmail) ? (await getAccess(S.myEmail) === "admin" ? "admin" : "member") : null);
-  if (!S.access){ showGate("denied", user.email); return; }
+  if (!S.access){ tabSet(SETPW, null); showGate("denied", user.email); return; }
+  if (tabGet(SETPW)){ showGate("setpw", user.email); document.getElementById("gate-setpw-user").value = user.email || ""; newPw.focus(); return; }
   // preview of a teammate's first visit: show the sign-in screen; its button just continues
   if (realAdmin() && S.preview?.first){ showGate("signin"); document.getElementById("gate-pv").hidden = false; return; }
   document.getElementById("gate").hidden = true; document.getElementById("app").hidden = false;
